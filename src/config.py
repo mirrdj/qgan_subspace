@@ -27,7 +27,7 @@ layer = 10  # #20 #15 #10 #4 #3 #2
 num_discriminator_layers = 2  # Number of layers for the discriminator circuit
 
 # Set to None for new training or a specific timestamp string to load models
-load_ts_for_training = "2025-05-21_00-12-38"
+load_ts_for_training = None  # "2025-05-21_00-12-38"
 # Example: load_ts_for_training = "2024-01-01_12-00-00"  # Replace with actual timestamp string
 
 
