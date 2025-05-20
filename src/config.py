@@ -25,7 +25,11 @@ eta = 1e-1  # initial learning rate
 system_size = 8  # #3 #4
 layer = 10  # #20 #15 #10 #4 #3 #2
 num_discriminator_layers = 2  # Number of layers for the discriminator circuit
-# TODO: layer is only for the generator??
+
+# Set to None for new training or a specific timestamp string to load models
+load_ts_for_training = "2025-05-21_00-12-38"
+# Example: load_ts_for_training = "2024-01-01_12-00-00"  # Replace with actual timestamp string
+
 
 ################################################################
 # END OF PARAMETERS TO CHANGE:
@@ -42,8 +46,8 @@ curr_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # File settings
 figure_path = f"./generated_data/{curr_datetime}/figure"
-model_gen_path = f"./generated_data/{curr_datetime}/saved_model/{system_size}qubit_model-gen(hs).mdl"
-model_dis_path = f"./generated_data/{curr_datetime}/saved_model/{system_size}qubit_model-dis(hs).mdl"
+model_gen_path = f"./generated_data/{curr_datetime}/saved_model/{system_size}qubit_model-gen(hs).npz"
+model_dis_path = f"./generated_data/{curr_datetime}/saved_model/{system_size}qubit_model-dis(hs).npz"
 log_path = f"./generated_data/{curr_datetime}/logs/{system_size}qubit_log.txt"
 fid_loss_path = f"./generated_data/{curr_datetime}/fidelities/{system_size}qubit_log_fidelity_loss.npy"
 theta_path = f"./generated_data/{curr_datetime}/theta/{system_size}qubit_theta_gen.txt"

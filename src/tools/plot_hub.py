@@ -44,7 +44,7 @@ def plt_fidelity_vs_iter(
         config: Configuration object with attributes like figure_path, system_size, label.
         indx (int): Index for the figure filename.
     """
-    fig, axs = plt.subplots(2, 2, figsize=(15, 10))  # Create a 2x2 grid of subplots
+    fig, axs = plt.subplots(1, 2, figsize=(15, 5))  # Changed to 1 row, 2 columns
 
     # Ensure all inputs are numpy arrays for plotting
     fidelities_np = np.asarray(fidelities)
@@ -52,29 +52,20 @@ def plt_fidelity_vs_iter(
     losses_D_np = np.asarray(losses_D)
     losses_D_minus_G_np = np.asarray(losses_D_minus_G)
 
-    # Top-left: Fidelity vs. Iteration
-    axs[0, 0].plot(range(len(fidelities_np)), fidelities_np)
-    axs[0, 0].set_xlabel("Iteration")
-    axs[0, 0].set_ylabel("Fidelity")
-    axs[0, 0].set_title("Fidelity vs. Iteration")
+    # Left subplot: Fidelity vs. Iteration
+    axs[0].plot(range(len(fidelities_np)), fidelities_np)
+    axs[0].set_xlabel("Iteration")
+    axs[0].set_ylabel("Fidelity")
+    axs[0].set_title("Fidelity vs. Iteration")
 
-    # Top-right: Generator Loss (cost_G) vs. Iteration
-    axs[0, 1].plot(range(len(losses_G_np)), losses_G_np, color="blue")
-    axs[0, 1].set_xlabel("Iteration")
-    axs[0, 1].set_ylabel("Generator Loss (cost_G)")
-    axs[0, 1].set_title("Generator Loss vs. Iteration")
-
-    # Bottom-left: Discriminator Loss (cost_D) vs. Iteration
-    axs[1, 0].plot(range(len(losses_D_np)), losses_D_np, color="red")
-    axs[1, 0].set_xlabel("Iteration")
-    axs[1, 0].set_ylabel("Discriminator Loss (cost_D)")
-    axs[1, 0].set_title("Discriminator Loss vs. Iteration")
-
-    # Bottom-right: (cost_D - cost_G) vs. Iteration
-    axs[1, 1].plot(range(len(losses_D_minus_G_np)), losses_D_minus_G_np, color="green")
-    axs[1, 1].set_xlabel("Iteration")
-    axs[1, 1].set_ylabel("cost_D - cost_G")
-    axs[1, 1].set_title("(Discriminator - Generator) Loss vs. Iteration")
+    # Right subplot: All three losses vs. Iteration
+    axs[1].plot(range(len(losses_G_np)), losses_G_np, color="blue", label="Generator Loss (cost_G)")
+    axs[1].plot(range(len(losses_D_np)), losses_D_np, color="red", label="Discriminator Loss (cost_D)")
+    axs[1].plot(range(len(losses_D_minus_G_np)), losses_D_minus_G_np, color="green", label="cost_D - cost_G")
+    axs[1].set_xlabel("Iteration")
+    axs[1].set_ylabel("Loss")
+    axs[1].set_title("Losses vs. Iteration")
+    axs[1].legend()  # Add legend to distinguish the loss curves
 
     plt.tight_layout()
 

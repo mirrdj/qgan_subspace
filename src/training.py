@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 import traceback
 from datetime import datetime
@@ -37,7 +38,7 @@ np.random.seed()  # Seed for initial parameter generation in Generator/Discrimin
 
 
 class Training:
-    def __init__(self):
+    def __init__(self, load_timestamp=None):
         """Builds the configuration for the Training. You might wanna comment/discomment lines, for changing the model."""
 
         # Determine effective qubit numbers based on config
@@ -90,6 +91,54 @@ class Training:
         # Discriminator (acts on N_eff qubits)
         self.discriminator_total_qubits = self.N_eff
         self.dis = Discriminator(system_size=self.N_eff, num_disc_layers=cf.num_discriminator_layers)
+
+        if load_timestamp:
+            # Ensure cf.log_path is available for logging during initialization if needed early
+            loading_msg_prefix = f"[Timestamp: {load_timestamp}] "
+            train_log(f"{loading_msg_prefix}Attempting to load models.\n", cf.log_path)
+            print(f"{loading_msg_prefix}Attempting to load models.")
+
+            try:
+                # Get base filenames from the current config (these define what *this* run would save as)
+                gen_model_filename = os.path.basename(cf.model_gen_path)
+                dis_model_filename = os.path.basename(cf.model_dis_path)
+
+                load_gen_path = os.path.join("generated_data", load_timestamp, "saved_model", gen_model_filename)
+                load_dis_path = os.path.join("generated_data", load_timestamp, "saved_model", dis_model_filename)
+
+                train_log(
+                    f"{loading_msg_prefix}Attempting to load Generator parameters from: {load_gen_path}\n", cf.log_path
+                )
+                self.gen.load_model(load_gen_path)
+                train_log(
+                    f"{loading_msg_prefix}Generator parameters loaded successfully from {load_gen_path}\n", cf.log_path
+                )
+                print(f"{loading_msg_prefix}Generator parameters loaded from {load_gen_path}")
+
+                train_log(
+                    f"{loading_msg_prefix}Attempting to load Discriminator parameters from: {load_dis_path}\n",
+                    cf.log_path,
+                )
+                self.dis.load_model(load_dis_path)
+                train_log(
+                    f"{loading_msg_prefix}Discriminator parameters loaded successfully from {load_dis_path}\n",
+                    cf.log_path,
+                )
+                print(f"{loading_msg_prefix}Discriminator parameters loaded from {load_dis_path}")
+
+                train_log(f"{loading_msg_prefix}Models loaded successfully. Continuing training.\n", cf.log_path)
+                print(f"{loading_msg_prefix}Models loaded successfully. Continuing training.")
+
+            except FileNotFoundError as e:
+                error_msg = f"{loading_msg_prefix}ERROR: Could not load model files. File not found: {e}. Starting training from scratch instead.\n"
+                train_log(error_msg, cf.log_path)
+                print(error_msg)
+                # Allow training to proceed from scratch if loading fails
+            except Exception as e:
+                error_msg = f"{loading_msg_prefix}ERROR: An unexpected error occurred while loading models: {e}. Traceback: {traceback.format_exc()}. Starting training from scratch instead.\n"
+                train_log(error_msg, cf.log_path)
+                print(error_msg)
+                # Allow training to proceed from scratch
 
     def initialize_target_state(self) -> pnp.ndarray:
         """Initialize the target state: U_target |reference_state_N_eff>."""
@@ -335,14 +384,24 @@ if __name__ == "__main__":
         train_log(final_summary_msg, cf.log_path)
     else:
         # Run with default configuration from config.py
-        print("\nRunning with default configuration from config.py...")
-        train_log("\nRunning with default configuration from config.py...\n", cf.log_path)
+        run_message = ""
+        if cf.load_ts_for_training:
+            run_message = (
+                f"\nAttempting to load models from timestamp: {cf.load_ts_for_training} and continue training...\n"
+            )
+        else:
+            run_message = "\nRunning with default configuration from config.py (new training)...\n"
+
+        print(run_message.strip())  # Console feedback
+        train_log(run_message, cf.log_path)  # Log to file
+
         try:
-            training_instance = Training()
+            # Pass the timestamp to the Training constructor if provided
+            training_instance = Training(load_timestamp=cf.load_ts_for_training if not testing else None)
             training_instance.run()
             success_msg = "\nDefault configuration run COMPLETED SUCCESSFULLY.\n"
-            print(success_msg)
-            train_log(success_msg, cf.log_path)
+            print(success_msg.strip())  # Console feedback
+            train_log(success_msg, cf.log_path)  # Log to file
         except Exception as e:
             tb_str = traceback.format_exc()
             error_msg = (
@@ -353,5 +412,5 @@ if __name__ == "__main__":
                 f"Traceback:\n{tb_str}"
                 f"{'=' * 60}\n"
             )
-            print(error_msg)
-            train_log(error_msg, cf.log_path)
+            print(error_msg)  # Console feedback
+            train_log(error_msg, cf.log_path)  # Log to file
