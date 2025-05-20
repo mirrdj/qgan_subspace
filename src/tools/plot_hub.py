@@ -26,30 +26,55 @@ import matplotlib.pyplot as plt
 import numpy as np  # Import numpy for array operations
 
 
-def plt_fidelity_vs_iter(fidelities: np.ndarray, losses: np.ndarray, config, indx: int = 0):
-    """Plots fidelity and loss vs. iteration number and saves the figure.
+def plt_fidelity_vs_iter(
+    fidelities: np.ndarray,
+    losses_G: np.ndarray,
+    losses_D: np.ndarray,
+    losses_D_minus_G: np.ndarray,
+    config,
+    indx: int = 0,
+):
+    """Plots fidelity and various losses vs. iteration number and saves the figure.
 
     Args:
         fidelities (np.ndarray): Array of fidelity values.
-        losses (np.ndarray): Array of loss values.
+        losses_G (np.ndarray): Array of Generator loss values.
+        losses_D (np.ndarray): Array of Discriminator loss values.
+        losses_D_minus_G (np.ndarray): Array of (Discriminator Loss - Generator Loss) values.
         config: Configuration object with attributes like figure_path, system_size, label.
         indx (int): Index for the figure filename.
     """
-    fig, (axs1, axs2) = plt.subplots(1, 2, figsize=(12, 5))  # Adjusted figsize for better layout
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10))  # Create a 2x2 grid of subplots
 
-    # Ensure fidelities and losses are numpy arrays for plotting
+    # Ensure all inputs are numpy arrays for plotting
     fidelities_np = np.asarray(fidelities)
-    losses_np = np.asarray(losses)
+    losses_G_np = np.asarray(losses_G)
+    losses_D_np = np.asarray(losses_D)
+    losses_D_minus_G_np = np.asarray(losses_D_minus_G)
 
-    axs1.plot(range(len(fidelities_np)), fidelities_np)
-    axs1.set_xlabel("Iteration")  # Changed from Epoch to Iteration to match typical GAN training logs
-    axs1.set_ylabel("Fidelity")  # Simplified label
-    axs1.set_title("Fidelity vs. Iteration")  # Added title
+    # Top-left: Fidelity vs. Iteration
+    axs[0, 0].plot(range(len(fidelities_np)), fidelities_np)
+    axs[0, 0].set_xlabel("Iteration")
+    axs[0, 0].set_ylabel("Fidelity")
+    axs[0, 0].set_title("Fidelity vs. Iteration")
 
-    axs2.plot(range(len(losses_np)), losses_np)
-    axs2.set_xlabel("Iteration")  # Changed from Epoch to Iteration
-    axs2.set_ylabel("Discriminator Loss")  # Clarified loss type
-    axs2.set_title("Loss vs. Iteration")  # Added title
+    # Top-right: Generator Loss (cost_G) vs. Iteration
+    axs[0, 1].plot(range(len(losses_G_np)), losses_G_np, color="blue")
+    axs[0, 1].set_xlabel("Iteration")
+    axs[0, 1].set_ylabel("Generator Loss (cost_G)")
+    axs[0, 1].set_title("Generator Loss vs. Iteration")
+
+    # Bottom-left: Discriminator Loss (cost_D) vs. Iteration
+    axs[1, 0].plot(range(len(losses_D_np)), losses_D_np, color="red")
+    axs[1, 0].set_xlabel("Iteration")
+    axs[1, 0].set_ylabel("Discriminator Loss (cost_D)")
+    axs[1, 0].set_title("Discriminator Loss vs. Iteration")
+
+    # Bottom-right: (cost_D - cost_G) vs. Iteration
+    axs[1, 1].plot(range(len(losses_D_minus_G_np)), losses_D_minus_G_np, color="green")
+    axs[1, 1].set_xlabel("Iteration")
+    axs[1, 1].set_ylabel("cost_D - cost_G")
+    axs[1, 1].set_title("(Discriminator - Generator) Loss vs. Iteration")
 
     plt.tight_layout()
 

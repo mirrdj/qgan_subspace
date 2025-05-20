@@ -107,7 +107,7 @@ class Training:
         f = compute_fidelity(self.gen, self.input_state, self.real_state)
 
         # Data storing
-        fidelities_history, losses_history = [], []  # Use lists to append
+        fidelities_history, losses_G_history, losses_D_history, losses_D_minus_G_history = [], [], [], []
         starttime = datetime.now()
         num_epochs = 0
 
@@ -117,7 +117,9 @@ class Training:
         # Training
         while f < 0.99:  # Target fidelity
             fidelities_epoch = np.zeros(cf.iterations_epoch)  # For current epoch
-            losses_epoch = np.zeros(cf.iterations_epoch)  # For current epoch
+            losses_G_epoch = np.zeros(cf.iterations_epoch)  # For current epoch G_loss
+            losses_D_epoch = np.zeros(cf.iterations_epoch)  # For current epoch D_loss
+            losses_D_minus_G_epoch = np.zeros(cf.iterations_epoch)  # For D_loss - G_loss
             num_epochs += 1
 
             epoch_start_time = time.time()
@@ -143,13 +145,17 @@ class Training:
                     self.dis.params_disc, fake_state_for_D_cost, self.real_state
                 )
 
-                current_loss = cost_G
+                cost_D_minus_G = cost_D - cost_G
 
                 fidelities_epoch[iter_idx] = current_fidelity
-                losses_epoch[iter_idx] = current_loss.numpy() if hasattr(current_loss, "numpy") else current_loss
+                losses_G_epoch[iter_idx] = cost_G.numpy() if hasattr(cost_G, "numpy") else cost_G
+                losses_D_epoch[iter_idx] = cost_D.numpy() if hasattr(cost_D, "numpy") else cost_D
+                losses_D_minus_G_epoch[iter_idx] = (
+                    cost_D_minus_G.numpy() if hasattr(cost_D_minus_G, "numpy") else cost_D_minus_G
+                )
 
                 iter_time = time.time() - iter_start_time
-                iter_log_msg = f"Fidelity: {current_fidelity:.6f}, G_Loss: {cost_G:.6f}, D_Loss: {cost_D:.6f}, Iter time: {iter_time:.2f}s\n==================================================\n"
+                iter_log_msg = f"Fidelity: {current_fidelity:.6f}, G_Loss: {cost_G:.6f}, D_Loss: {cost_D:.6f}, D-G Loss: {cost_D_minus_G:.6f}, Iter time: {iter_time:.2f}s\n==================================================\n"
                 train_log(iter_log_msg, cf.log_path)
 
                 if (iter_idx + 1) % 10 == 0:  # Log every 10 iterations
@@ -157,7 +163,7 @@ class Training:
                     training_duration_hours = (endtime - starttime).total_seconds() / 3600.0
                     log_param_str = (
                         f"Epoch: {num_epochs:4d}, Iter: {iter_idx + 1:4d} | "
-                        f"Fidelity: {current_fidelity:.6f} | Loss: {current_loss:.6f} | "
+                        f"Fidelity: {current_fidelity:.6f} | G_Loss: {cost_G:.6f} | D_Loss: {cost_D:.6f} | D-G Loss: {cost_D_minus_G:.6f} | "
                         f"Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | "
                         f"Duration (hrs): {training_duration_hours:.2f}\n"
                     )
@@ -165,14 +171,23 @@ class Training:
 
             f = fidelities_epoch[-1]
             fidelities_history.extend(fidelities_epoch.tolist())  # Append current epoch's data
-            losses_history.extend(losses_epoch.tolist())  # Append current epoch's data
+            losses_G_history.extend(losses_G_epoch.tolist())
+            losses_D_history.extend(losses_D_epoch.tolist())
+            losses_D_minus_G_history.extend(losses_D_minus_G_epoch.tolist())
 
             epoch_duration = time.time() - epoch_start_time
             epoch_log_msg = f"Epoch {num_epochs} completed. Fidelity: {f:.6f}. Duration: {epoch_duration:.2f}s\n"
             train_log(epoch_log_msg, cf.log_path)
 
             if num_epochs % cf.plot_every_epochs == 0:  # Add cf.plot_every_epochs to config.py (e.g., 1 or 5)
-                plt_fidelity_vs_iter(np.array(fidelities_history), np.array(losses_history), cf, num_epochs)
+                plt_fidelity_vs_iter(
+                    np.array(fidelities_history),
+                    np.array(losses_G_history),
+                    np.array(losses_D_history),
+                    np.array(losses_D_minus_G_history),
+                    cf,
+                    num_epochs,
+                )
 
             if num_epochs >= cf.epochs:
                 max_epoch_log = f"Maximum number of epochs ({cf.epochs}) reached.\n"
@@ -183,10 +198,17 @@ class Training:
         train_log(training_finished_log, cf.log_path)
 
         # Final plot
-        plt_fidelity_vs_iter(np.array(fidelities_history), np.array(losses_history), cf, num_epochs)
+        plt_fidelity_vs_iter(
+            np.array(fidelities_history),
+            np.array(losses_G_history),
+            np.array(losses_D_history),
+            np.array(losses_D_minus_G_history),
+            cf,
+            num_epochs,
+        )
 
         # Save data of fidelity and loss
-        save_fidelity_loss(np.array(fidelities_history), np.array(losses_history), cf.fid_loss_path)
+        save_fidelity_loss(np.array(fidelities_history), np.array(losses_G_history), cf.fid_loss_path)
 
         # Save data of the generator and the discriminator using their own save methods
         self.gen.save_model(cf.model_gen_path)
