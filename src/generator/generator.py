@@ -1,120 +1,145 @@
-#### Generator file
+"""Generator class for the Quantum GAN."""
 
+import os  # Import os module
 
-import numpy as np
-from scipy.linalg import expm
+import numpy as np  # Keep standard numpy for operations not involving params
+import pennylane as qml
+from pennylane import numpy as pnp  # Use PennyLane's NumPy for automatic differentiation
 
-from config import cst1, cst2, cst3, lamb, system_size
+from generator.ansatz import construct_qcircuit_XX_YY_ZZ_Z, get_params_shape_XX_YY_ZZ_Z  # Default ansatz
 from optimizer.momentum_optimizer import MomentumOptimizer
-from tools.qcircuit import Identity, QuantumCircuit
 
 
 class Generator:
-    def __init__(self, system_size):
-        self.size = system_size
-        self.qc = self.init_qcircuit()
+    def __init__(
+        self,
+        system_size_N: int,  # N_eff: qubits for the ansatz U_G
+        system_size_M: int,  # M_eff: qubits for the input subspace state |psi_M>
+        layer: int,
+        ansatz_fn=construct_qcircuit_XX_YY_ZZ_Z,
+        params_shape_fn=get_params_shape_XX_YY_ZZ_Z,
+    ):
+        self.system_size_N = system_size_N
+        self.system_size_M = system_size_M
+        self.layer = layer
+        self.ansatz_fn = ansatz_fn
+        self.params_shape_fn = params_shape_fn
+
+        self.dev_ansatz = qml.device("default.qubit", wires=self.system_size_N)
+
+        params_shape = self.params_shape_fn(self.system_size_N, self.layer)
+        # Initialize with a small standard deviation for stability
+        self.params_gen = pnp.array(np.random.normal(0, 0.1, params_shape), requires_grad=True)
+
         self.optimizer = MomentumOptimizer()
 
-    def set_qcircuit(self, qc):
-        self.qc = qc
+        self._ansatz_qnode_for_state = qml.QNode(self._ansatz_circuit_state_prep, self.dev_ansatz, interface="autograd")
+        self._ansatz_qnode_for_unitary = qml.QNode(self._ansatz_circuit_unitary, self.dev_ansatz, interface="autograd")
 
-    def init_qcircuit(self):
-        qcircuit = QuantumCircuit(self.size, "generator")
-        return qcircuit
+    def _ansatz_circuit_state_prep(self, params, initial_state_vector_N_eff):
+        """Applies ansatz to a given initial state vector on N_eff qubits."""
+        qml.StatePrep(initial_state_vector_N_eff, wires=range(self.system_size_N))
+        self.ansatz_fn(self.system_size_N, self.layer, params)
+        return qml.state()
 
-    def getGen(self):
-        return np.kron(self.qc.get_mat_rep(), Identity(self.size))
+    def _ansatz_circuit_unitary(self, params):
+        """Circuit to get the unitary matrix of the ansatz on N_eff qubits."""
+        self.ansatz_fn(self.system_size_N, self.layer, params)
+        return qml.state()
 
-    def _grad_theta(self, dis, real_state, input_state):
-        G = self.getGen()
+    def get_ansatz_unitary(self, params_gen):
+        """Returns the unitary matrix U_G(params_gen) of the generator's ansatz (acts on N_eff qubits)."""
+        return qml.matrix(self._ansatz_qnode_for_unitary)(params=params_gen)
 
-        phi = dis.getPhi()
-        psi = dis.getPsi()
+    def get_generated_state_vector(self, params_gen, input_state_subspace_M_eff_qubits):
+        """
+        Generates the fake state vector: U_G(params_gen) |psi_input_N_eff>,
+        where |psi_input_N_eff> = |input_state_subspace_M_eff_qubits (x) |0...0>_{N_eff-M_eff}>.
+        """
+        dim_N_eff = 2**self.system_size_N
+        dim_M_eff = 2**self.system_size_M
 
-        fake_state = np.matmul(G, input_state)
-
-        try:
-            A = expm((-1 / lamb) * phi)
-        except Exception:
-            print("grad_gen -1/lamb:\n", (-1 / lamb))
-            print("size of phi:\n", phi.shape)
-
-        try:
-            B = expm((1 / lamb) * psi)
-        except Exception:
-            print("grad_gen 1/lamb:\n", (1 / lamb))
-            print("size of psi:\n", psi.shape)
-
-        grad_g_psi, grad_g_phi, grad_g_reg = [], [], []
-
-        for i in range(self.qc.depth):
-            grad_i = np.kron(self.qc.get_grad_mat_rep(i), Identity(system_size))
-            # for psi term
-            grad_g_psi.append(0)
-
-            # for phi term
-            fake_grad = np.matmul(grad_i, input_state)
-            tmp_grad = np.matmul(fake_grad.getH(), np.matmul(phi, fake_state)) + np.matmul(
-                fake_state.getH(), np.matmul(phi, fake_grad)
+        if self.system_size_M > self.system_size_N:
+            raise ValueError(
+                f"M_eff (system_size_M={self.system_size_M}) cannot be larger than N_eff (system_size_N={self.system_size_N})"
             )
 
-            grad_g_phi.append(np.ndarray.item(tmp_grad))
-            # grad_g_phi.append(np.asscalar(tmp_grad))
+        initial_state_N_eff_vec = pnp.zeros(dim_N_eff, dtype=complex)
+        input_state_subspace_pnp = pnp.asarray(input_state_subspace_M_eff_qubits, dtype=complex).flatten()
 
-            # for reg term
-
-            term1 = np.matmul(fake_grad.getH(), np.matmul(A, fake_state)) * np.matmul(
-                real_state.getH(), np.matmul(B, real_state)
-            )
-            term2 = np.matmul(fake_state.getH(), np.matmul(A, fake_grad)) * np.matmul(
-                real_state.getH(), np.matmul(B, real_state)
+        if len(input_state_subspace_pnp) != dim_M_eff:
+            raise ValueError(
+                f"Provided input_state_subspace_M_eff_qubits (length {len(input_state_subspace_pnp)}) "
+                f"does not match expected dimension for M_eff={self.system_size_M} (2**{self.system_size_M}={dim_M_eff})"
             )
 
-            term3 = np.matmul(fake_grad.getH(), np.matmul(B, real_state)) * np.matmul(
-                real_state.getH(), np.matmul(A, fake_state)
+        if self.system_size_M == self.system_size_N:
+            if dim_M_eff != dim_N_eff:
+                raise ValueError("Dimension mismatch even when M_eff == N_eff. This shouldn't happen.")
+            initial_state_N_eff_vec = input_state_subspace_pnp
+        else:
+            initial_state_N_eff_vec[0:dim_M_eff] = input_state_subspace_pnp[0:dim_M_eff]
+
+        fake_state_vec = self._ansatz_qnode_for_state(params_gen, initial_state_N_eff_vec)
+        return fake_state_vec
+
+    def generator_cost_function(self, params_gen, discriminator, input_state_subspace_M_eff_qubits):
+        """
+        Computes the cost for the generator.
+        Generator wants to maximize discriminator's output D(fake_state).
+        So, cost_G = -D(fake_state) to be minimized.
+        `discriminator` is the Discriminator object.
+        `input_state_subspace_M_eff_qubits` is |psi_M>.
+        """
+        fake_state_vec = self.get_generated_state_vector(params_gen, input_state_subspace_M_eff_qubits)
+
+        disc_params_fixed = pnp.array(discriminator.params_disc, requires_grad=False)
+
+        disc_output_on_fake = discriminator._discriminator_circuit_qnode(fake_state_vec, disc_params_fixed)
+
+        cost = -disc_output_on_fake
+        return cost
+
+    def _calculate_gradients(self, discriminator, input_state_subspace_M_eff_qubits):
+        """Calculates gradients of the generator's cost function w.r.t. params_gen."""
+        input_state_pnp = pnp.asarray(input_state_subspace_M_eff_qubits, dtype=complex, requires_grad=False)
+
+        grad_fn = qml.grad(self.generator_cost_function, argnum=0)
+        gradients = grad_fn(self.params_gen, discriminator, input_state_pnp)
+        return gradients
+
+    def update_gen(self, discriminator, input_state_subspace_M_eff_qubits):
+        """Update generator's parameters using gradients."""
+        gradients = self._calculate_gradients(discriminator, input_state_subspace_M_eff_qubits)
+
+        current_params_flat_np = (
+            self.params_gen.flatten().numpy()
+            if hasattr(self.params_gen, "numpy")
+            else np.array(self.params_gen.flatten())
+        )
+        gradients_flat_np = (
+            gradients.flatten().numpy() if hasattr(gradients, "numpy") else np.array(gradients.flatten())
+        )
+
+        new_params_flat = self.optimizer.compute_grad(current_params_flat_np, gradients_flat_np, "min")
+        self.params_gen = pnp.array(pnp.reshape(pnp.array(new_params_flat), self.params_gen.shape), requires_grad=True)
+
+    def save_model(self, file_path):
+        """Saves the generator's parameters to a file."""
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Create directory if it doesn't exist
+        params_to_save = self.params_gen.numpy() if hasattr(self.params_gen, "numpy") else np.array(self.params_gen)
+        pnp.savez(file_path, params_gen=params_to_save)
+
+    def load_model(self, file_path):
+        """Loads the generator's parameters from a file."""
+        data = pnp.load(file_path, allow_pickle=False)
+        loaded_params = data["params_gen"]
+
+        expected_shape = self.params_shape_fn(self.system_size_N, self.layer)
+        if loaded_params.shape != expected_shape:
+            raise ValueError(
+                f"Loaded generator parameters shape {loaded_params.shape} "
+                f"does not match expected shape {expected_shape} for N={self.system_size_N}, layers={self.layer}"
             )
-            term4 = np.matmul(fake_state.getH(), np.matmul(B, real_state)) * np.matmul(
-                real_state.getH(), np.matmul(A, fake_grad)
-            )
 
-            term5 = np.matmul(fake_grad.getH(), np.matmul(A, real_state)) * np.matmul(
-                real_state.getH(), np.matmul(B, fake_state)
-            )
-            term6 = np.matmul(fake_state.getH(), np.matmul(A, real_state)) * np.matmul(
-                real_state.getH(), np.matmul(B, fake_grad)
-            )
-
-            term7 = np.matmul(fake_grad.getH(), np.matmul(B, fake_state)) * np.matmul(
-                real_state.getH(), np.matmul(A, real_state)
-            )
-            term8 = np.matmul(fake_state.getH(), np.matmul(B, fake_grad)) * np.matmul(
-                real_state.getH(), np.matmul(A, real_state)
-            )
-
-            tmp_reg_grad = (
-                lamb
-                / np.e
-                * (cst1 * (term1 + term2) - cst2 * (term3 + term4) - cst2 * (term5 + term6) + cst3 * (term7 + term8))
-            )
-
-            grad_g_reg.append(np.ndarray.item(tmp_reg_grad))
-            # grad_g_reg.append(np.asscalar(tmp_reg_grad))
-
-        g_psi = np.asarray(grad_g_psi)
-        g_phi = np.asarray(grad_g_phi)
-        g_reg = np.asarray(grad_g_reg)
-
-        grad = np.real(g_psi - g_phi - g_reg)
-
-        return grad
-
-    def update_gen(self, dis, real_state, input_state):
-        theta = []
-        for gate in self.qc.gates:
-            theta.append(gate.angle)
-
-        grad = np.asarray(self._grad_theta(dis, real_state, input_state))
-        theta = np.asarray(theta)
-        new_angle = self.optimizer.compute_grad(theta, grad, "min")
-        for i in range(self.qc.depth):
-            self.qc.gates[i].angle = new_angle[i]
+        self.params_gen = pnp.array(loaded_params, requires_grad=True)

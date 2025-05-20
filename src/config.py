@@ -18,12 +18,13 @@ lamb = float(10)
 extra_ancilla = False  # True # False
 iterations_epoch = 100
 epochs = 10
-# eta = 1e-1 # initial learning rate
+eta = 1e-1  # initial learning rate
 # TODO: Eta its not being used!
 
 # System setting
-system_size = 4  # #3 #4
+system_size = 8  # #3 #4
 layer = 10  # #20 #15 #10 #4 #3 #2
+num_discriminator_layers = 2  # Number of layers for the discriminator circuit
 # TODO: layer is only for the generator??
 
 ################################################################
@@ -37,7 +38,7 @@ cst2 = (s / 2) * (s / 2 + 1)
 cst3 = (s / 2) ** 2
 
 # Datetime
-curr_datetime = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+curr_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # File settings
 figure_path = f"./generated_data/{curr_datetime}/figure"

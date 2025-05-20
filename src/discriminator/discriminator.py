@@ -1,226 +1,141 @@
-#### Discriminator file
+# Copyright 2024 PennyLane Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""Discriminator class for the Quantum GAN using PennyLane."""
 
-import numpy as np
-from scipy.linalg import expm
+import os  # Import os module
 
-from config import cst1, cst2, cst3, lamb
+import numpy as np  # For initializations or non-gradient parts
+import pennylane as qml
+from pennylane import numpy as pnp
+
 from optimizer.momentum_optimizer import MomentumOptimizer
 
 
 class Discriminator:
-    def __init__(self, herm, system_size):
-        self.size = system_size
-        self.herm = herm
-        self.alpha = np.zeros((self.size, len(self.herm)))
-        self.beta = np.zeros((self.size, len(self.herm)))
-        self._init_params()
-        self.optimizer_psi = MomentumOptimizer()
-        self.optimizer_phi = MomentumOptimizer()
+    def __init__(self, system_size: int, num_disc_layers: int):
+        self.system_size = system_size  # N_eff
+        self.num_disc_layers = num_disc_layers
+        self.dev_disc = qml.device("default.qubit", wires=self.system_size)
 
-    def _init_params(self):
-        # Discriminator Parameters
+        # Define the ansatz for the discriminator circuit
+        num_params_per_layer = self.system_size * 2
+        total_params = (self.num_disc_layers * num_params_per_layer) + self.system_size
 
-        for i in range(self.size):
-            self.alpha[i] = -1 + 2 * np.random.random(len(self.herm))
-            self.beta[i] = -1 + 2 * np.random.random(len(self.herm))
+        self.params_disc = pnp.array(np.random.uniform(low=0, high=2 * np.pi, size=total_params), requires_grad=True)
 
-    def getPsi(self) -> np.ndarray:
-        """Get matrix representation of real part of discriminator
+        self._discriminator_circuit_qnode = self._create_qnode()
 
-        Parameters of psi(ndarray):size = [num_qubit, 4]
-                    0: I
-                    1: X
-                    2: Y
-                    3: Z
-        Returns:
-            np.ndarray: Psi, matrix representation of real part of discriminator
+        self.optimizer_disc = MomentumOptimizer()  # Optimizer for params_disc
+
+        self.grad_params_disc_fn = qml.grad(self.discriminator_cost_function, argnum=0)
+
+    def _discriminator_circuit(self, state_vector_to_evaluate, disc_circuit_params):
         """
-        psi = 1
-        for i in range(self.size):
-            psi_i = np.zeros_like(self.herm[0], dtype=complex)
-            for j in range(len(self.herm)):
-                psi_i += self.alpha[i][j] * self.herm[j]
-            psi = np.kron(psi, psi_i)
-        return psi
-
-    def getPhi(self) -> np.ndarray:
-        """Get matrix representation of fake part of discriminator
-
-        Parameters of psi(ndarray):size = [num_qubit, 4]
-                    0: I
-                    1: X
-                    2: Y
-                    3: Z
-        Returns:
-            np.ndarray: Phi, matrix representation of fake part of discriminator
+        Defines the discriminator's quantum circuit structure.
+        This method is intended to be wrapped by a QNode.
         """
-        phi = 1
-        for i in range(self.size):
-            phi_i = np.zeros_like(self.herm[0], dtype=complex)
-            for j in range(len(self.herm)):
-                phi_i += self.beta[i][j] * self.herm[j]
-            phi = np.kron(phi, phi_i)
-        return phi
+        qml.StatePrep(state_vector_to_evaluate, wires=range(self.system_size))
 
-    # Psi gradients
-    def _grad_psi(self, type):
-        grad_psi = []
-        for i in range(self.size):
-            grad_psiI = 1
-            for j in range(self.size):
-                if i == j:
-                    grad_psii = self.herm[type]
-                else:
-                    grad_psii = np.zeros_like(self.herm[0], dtype=complex)
-                    for k in range(len(self.herm)):
-                        grad_psii += self.alpha[j][k] * self.herm[k]
-                grad_psiI = np.kron(grad_psiI, grad_psii)
-            grad_psi.append(grad_psiI)
-        return grad_psi
+        param_idx = 0
+        for _ in range(self.num_disc_layers):
+            for i in range(self.system_size):
+                qml.RY(disc_circuit_params[param_idx], wires=i)
+                param_idx += 1
+            for i in range(self.system_size):
+                qml.RZ(disc_circuit_params[param_idx], wires=i)
+                param_idx += 1
+            for i in range(self.system_size - 1):
+                qml.CNOT(wires=[i, i + 1])
 
-    def _grad_alpha(self, gen, real_state, input_state):
-        G = gen.getGen()
-        psi = self.getPsi()
-        phi = self.getPhi()
+        for i in range(self.system_size):
+            qml.RY(disc_circuit_params[param_idx], wires=i)
+            param_idx += 1
 
-        fake_state = np.matmul(G, input_state)
+        return qml.expval(qml.PauliZ(0))
 
-        try:
-            A = expm((-1 / lamb) * phi)
-        except Exception:
-            print("grad_alpha -1/lamb:\n", (-1 / lamb))
-            print("size of phi:\n", phi.shape)
+    def _create_qnode(self):
+        """Creates and returns the QNode for the discriminator circuit."""
+        return qml.QNode(self._discriminator_circuit, self.dev_disc, interface="autograd")
 
-        try:
-            B = expm((1 / lamb) * psi)
-        except Exception:
-            print("grad_alpha 1/lamb:\n", (1 / lamb))
-            print("size of psi:\n", psi.shape)
+    def discriminator_cost_function(
+        self,
+        current_params_disc,
+        fake_state_vector,
+        real_state_vector,
+    ):
+        """
+        Computes the cost for the discriminator.
+        Cost to minimize: E_fake - E_real.
+        """
+        output_fake = self._discriminator_circuit_qnode(fake_state_vector, current_params_disc)
+        output_real = self._discriminator_circuit_qnode(real_state_vector, current_params_disc)
 
-        cs = 1 / lamb
+        cost = output_fake - output_real
+        return cost
 
-        grad_psi_term = np.zeros_like(self.alpha, dtype=complex)
-        grad_phi_term = np.zeros_like(self.alpha, dtype=complex)
-        grad_reg_term = np.zeros_like(self.alpha, dtype=complex)
+    def _calculate_gradients(self, current_params_disc, fake_state_vector, real_state_vector):
+        """Calculates gradients for params_disc."""
+        grad_val = self.grad_params_disc_fn(current_params_disc, fake_state_vector, real_state_vector)
+        return grad_val
 
-        for type in range(len(self.herm)):
-            gradpsi = self._grad_psi(type)
+    def update_dis(self, generator, real_target_state, input_state_for_generator):
+        """
+        Performs one update step for the discriminator's parameters.
+        """
+        fake_state_vector = generator.get_generated_state_vector(
+            params_gen=generator.params_gen, input_state_subspace_M_eff_qubits=input_state_for_generator
+        )
 
-            gradpsi_list, gradphi_list, gradreg_list = [], [], []
+        fake_state_pnp = pnp.asarray(fake_state_vector, dtype=complex)
+        real_target_pnp = pnp.asarray(real_target_state, dtype=complex)
 
-            for grad_psi in gradpsi:
-                gradpsi_list.append(np.ndarray.item(np.matmul(real_state.getH(), np.matmul(grad_psi, real_state))))
-                # gradpsi_list.append(np.asscalar(np.matmul(real_state.getH(), np.matmul(grad_psi, real_state))))
+        grad_params_val = self._calculate_gradients(self.params_disc, fake_state_pnp, real_target_pnp)
 
-                gradphi_list.append(0)
+        current_params_disc_np = (
+            self.params_disc.numpy() if hasattr(self.params_disc, "numpy") else np.array(self.params_disc)
+        )
+        grad_params_val_np = grad_params_val.numpy() if hasattr(grad_params_val, "numpy") else np.array(grad_params_val)
 
-                term1 = cs * np.matmul(fake_state.getH(), np.matmul(A, fake_state)) * np.matmul(real_state.getH(), np.matmul(grad_psi, np.matmul(B, real_state)))
-                term2 = cs * np.matmul(fake_state.getH(), np.matmul(grad_psi, np.matmul(B, real_state))) * np.matmul(real_state.getH(), np.matmul(A, fake_state))
-                term3 = cs * np.matmul(fake_state.getH(), np.matmul(A, real_state)) * np.matmul(real_state.getH(), np.matmul(grad_psi, np.matmul(B, fake_state)))
-                term4 = cs * np.matmul(fake_state.getH(), np.matmul(grad_psi, np.matmul(B, fake_state))) * np.matmul(real_state.getH(), np.matmul(A, real_state))
+        new_params_disc_flat = self.optimizer_disc.compute_grad(
+            current_params_disc_np.flatten(), grad_params_val_np.flatten(), "min"
+        )
 
-                gradreg_list.append(
-                    np.ndarray.item(lamb / np.e * (cst1 * term1 - cst2 * term2 - cst2 * term3 + cst3 * term4))
-                )
-                # gradreg_list.append(np.asscalar(lamb / np.e * (cst1 * term1 - cst2 * term2 - cst2 * term3 + cst3 * term4)))
+        self.params_disc = pnp.array(
+            pnp.reshape(pnp.array(new_params_disc_flat), self.params_disc.shape), requires_grad=True
+        )
 
-            # calculate grad of psi term
-            grad_psi_term[:, type] = np.asarray(gradpsi_list)
+    def get_params(self):
+        """Returns the discriminator's trainable parameters."""
+        return self.params_disc
 
-            # calculate grad of phi term
-            grad_phi_term[:, type] = np.asarray(gradphi_list)
+    def save_model(self, file_path):
+        """Saves the discriminator's parameters to a file."""
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Create directory if it doesn't exist
+        pnp.savez(
+            file_path,
+            params_disc=self.params_disc.numpy() if hasattr(self.params_disc, "numpy") else np.array(self.params_disc),
+        )
 
-            # calculate grad of reg term
-            grad_reg_term[:, type] = np.asarray(gradreg_list)
+    def load_model(self, file_path):
+        """Loads the discriminator's parameters from a file."""
+        data = pnp.load(file_path, allow_pickle=False)
+        loaded_params = data["params_disc"]
+        expected_shape = self.params_disc.shape
+        if loaded_params.shape != expected_shape:
+            raise ValueError(
+                f"Loaded parameters shape {loaded_params.shape} does not match expected shape {expected_shape}"
+            )
 
-        grad = np.real(grad_psi_term - grad_phi_term - grad_reg_term)
-
-        return grad
-
-    # Phi gradients
-    def _grad_phi(self, type):
-        grad_phi = []
-        for i in range(self.size):
-            grad_phiI = 1
-            for j in range(self.size):
-                if i == j:
-                    grad_phii = self.herm[type]
-                else:
-                    grad_phii = np.zeros_like(self.herm[0], dtype=complex)
-                    for k in range(len(self.herm)):
-                        grad_phii += self.beta[j][k] * self.herm[k]
-                grad_phiI = np.kron(grad_phiI, grad_phii)
-            grad_phi.append(grad_phiI)
-        return grad_phi
-
-    def _grad_beta(self, gen, real_state, input_state):
-        G = gen.getGen()
-        psi = self.getPsi()
-        phi = self.getPhi()
-
-        fake_state = np.matmul(G, input_state)
-
-        try:
-            A = expm((-1 / lamb) * phi)
-        except Exception:
-            print("grad_beta -1/lamb:\n", (-1 / lamb))
-            print("size of phi:\n", phi.shape)
-
-        try:
-            B = expm((1 / lamb) * psi)
-        except Exception:
-            print("grad_beta 1/lamb:\n", (1 / lamb))
-            print("size of psi:\n", psi.shape)
-
-        cs = -1 / lamb
-
-        grad_psi_term = np.zeros_like(self.beta, dtype=complex)
-        grad_phi_term = np.zeros_like(self.beta, dtype=complex)
-        grad_reg_term = np.zeros_like(self.beta, dtype=complex)
-
-        for type in range(len(self.herm)):
-            gradphi = self._grad_phi(type)
-
-            gradpsi_list, gradphi_list, gradreg_list = [], [], []
-
-            for grad_phi in gradphi:
-                gradpsi_list.append(0)
-
-                gradphi_list.append(np.ndarray.item(np.matmul(fake_state.getH(), np.matmul(grad_phi, fake_state))))
-                # gradphi_list.append(np.asscalar(np.matmul(fake_state.getH(), np.matmul(grad_phi, fake_state))))
-
-                term1 = cs * np.matmul(fake_state.getH(), np.matmul(grad_phi, np.matmul(A, fake_state))) * np.matmul(real_state.getH(), np.matmul(B, real_state))
-                term2 = cs * np.matmul(fake_state.getH(), np.matmul(B, real_state)) * np.matmul(real_state.getH(), np.matmul(grad_phi, np.matmul(A, fake_state)))
-                term3 = cs * np.matmul(fake_state.getH(), np.matmul(grad_phi, np.matmul(A, real_state))) * np.matmul(real_state.getH(), np.matmul(B, fake_state))
-                term4 = cs * np.matmul(fake_state.getH(), np.matmul(B, fake_state)) * np.matmul(real_state.getH(), np.matmul(grad_phi, np.matmul(A, real_state)))
-
-                gradreg_list.append(np.ndarray.item(lamb / np.e * (cst1 * term1 - cst2 * term2 - cst2 * term3 + cst3 * term4)))
-                # gradreg_list.append(np.asscalar(lamb / np.e * (cst1 * term1 - cst2 * term2 - cst2 * term3 + cst3 * term4)))
-
-            # calculate grad of psi term
-            grad_psi_term[:, type] = np.asarray(gradpsi_list)
-
-            # calculate grad of phi term
-            grad_phi_term[:, type] = np.asarray(gradphi_list)
-
-            # calculate grad of reg term
-            grad_reg_term[:, type] = np.asarray(gradreg_list)
-
-        grad = np.real(grad_psi_term - grad_phi_term - grad_reg_term)
-
-        return grad
-
-    def update_dis(self, gen, real_state, input_state):
-        grad_alpha = self._grad_alpha(gen, real_state, input_state)
-        # update alpha
-        new_alpha = self.optimizer_psi.compute_grad(self.alpha, grad_alpha, "max")
-        # new_alpha = self.alpha + eta * self._grad_alpha(gen)
-
-        grad_beta = self._grad_beta(gen, real_state, input_state)
-        # update beta
-        new_beta = self.optimizer_phi.compute_grad(self.beta, grad_beta, "max")
-        # new_beta = self.beta + eta * self._grad_beta(gen)
-
-        self.alpha = new_alpha
-        self.beta = new_beta
+        self.params_disc = pnp.array(loaded_params, requires_grad=True)

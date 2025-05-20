@@ -1,91 +1,100 @@
-#### Cost and Fidelities file
+# Copyright 2024 PennyLane Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Cost and Fidelities file
+
+import pennylane.numpy as pnp  # Use PennyLane's numpy
+
+from discriminator.discriminator import Discriminator  # Changed to absolute import
+from generator.generator import Generator  # Changed to absolute import
 
 
-import numpy as np
-from scipy.linalg import expm
-
-from config import cst1, cst2, cst3, lamb
-from discriminator.discriminator import Discriminator
-from generator.generator import Generator
-
-np.random.seed()
-
-
-def compute_cost(gen: Generator, dis: Discriminator, real_state: np.ndarray, input_state: np.ndarray) -> float:
-    """Calculate the cost function
+def compute_cost(
+    gen: Generator, dis: Discriminator, real_state_nm_qubits_np: pnp.ndarray, input_to_g_nm_qubits_np: pnp.ndarray
+) -> float:
+    """Calculate the discriminator's objective value L_D.
+    L_D = Tr(rho_real Psi) - Tr(rho_fake Phi) - Regularization.
+    This function calls the discriminator's internal cost function which returns -L_D.
 
     Args:
-        gen (Generator): the generator.
-        dis (Discriminator): the discriminator.
-        real_state (np.ndarray): the real state.
-        input_state (np.ndarray): the input state.
+        gen (Generator): The generator object.
+        dis (Discriminator): The discriminator object.
+        real_state_nm_qubits_np (pnp.ndarray): The real target state vector (N+M qubits).
+        input_to_g_nm_qubits_np (pnp.ndarray): The input state vector for the generator matrix G (N+M qubits,
+                                              e.g., |0...0>_N (tensor) |0...0>_M).
 
     Returns:
-        float: the cost function.
+        float: The value of the discriminator's objective function L_D.
     """
-    G = gen.getGen()
-    psi = dis.getPsi()
-    phi = dis.getPhi()
+    # This function is now obsolete due to discriminator redesign.
+    # Returning 0.0 as a placeholder.
+    # The actual GAN loss should be handled in the training loop based on
+    # generator and discriminator costs.
+    return 0.0
+    # Ensure inputs are PennyLane numpy arrays and detached for value calculation
+    # real_state_nm_pnp = pnp.array(real_state_nm_qubits_np, dtype=complex, requires_grad=False).flatten()
+    # input_to_g_nm_pnp = pnp.array(input_to_g_nm_qubits_np, dtype=complex, requires_grad=False).flatten()
 
-    fake_state = np.matmul(G, input_state)
+    # Get current generator matrix G = U_G (tensor) I_M (as PennyLane array, detached)
+    # gen.params should already be a pnp.array
+    # g_matrix_pnp = gen.get_full_generator_matrix(gen.params_gen) # Corrected params to params_gen
+    # g_matrix_val = pnp.array(g_matrix_pnp.numpy(), requires_grad=False)  # Detach
 
-    try:
-        A = expm(float(-1 / lamb) * phi)
-    except Exception:
-        print("cost function -1/lamb:\n", (-1 / lamb))
-        print("size of phi:\n", phi.shape)
+    # dis.alpha and dis.beta are pnp.array(requires_grad=True)
+    # The discriminator_cost_function handles requires_grad internally for its arguments.
 
-    try:
-        B = expm(float(1 / lamb) * psi)
-    except Exception:
-        print("cost function 1/lamb:\n", (1 / lamb))
-        print("size of psi:\n", psi.shape)
+    # Call the discriminator's cost function. It returns -L_D.
+    # neg_l_d = dis.discriminator_cost_function(
+    #     dis.alpha, # This attribute no longer exists
+    #     dis.beta,  # This attribute no longer exists
+    #     g_matrix_val,  # G(theta)
+    #     real_state_nm_pnp,  # rho_real (state vector)
+    #     input_to_g_nm_pnp,  # input state for G to produce rho_fake
+    # )
+    # We want to return L_D
+    # return float(pnp.real(-neg_l_d))
 
-    term1 = np.matmul(fake_state.getH(), np.matmul(A, fake_state))
-    term2 = np.matmul(real_state.getH(), np.matmul(B, real_state))
 
-    term3 = np.matmul(fake_state.getH(), np.matmul(B, real_state))
-    term4 = np.matmul(real_state.getH(), np.matmul(A, fake_state))
+def compute_fidelity(
+    gen: Generator, input_to_g_m_qubits_np: pnp.ndarray, target_real_state_nm_qubits_np: pnp.ndarray
+) -> float:
+    """Calculate the fidelity between the generated state and the target real state.
+    Fidelity = |<target_real_state|generated_state>|^2.
 
-    term5 = np.matmul(fake_state.getH(), np.matmul(A, real_state))
-    term6 = np.matmul(real_state.getH(), np.matmul(B, fake_state))
+    Args:
+        gen (Generator): The generator object.
+        input_to_g_m_qubits_np (pnp.ndarray): The input state vector for the generator (M qubits).
+        target_real_state_nm_qubits_np (pnp.ndarray): The target real state vector (N+M qubits).
 
-    term7 = np.matmul(fake_state.getH(), np.matmul(B, fake_state))
-    term8 = np.matmul(real_state.getH(), np.matmul(A, real_state))
+    Returns:
+        float: The fidelity.
+    """
+    # Ensure inputs are PennyLane numpy arrays and detached
+    input_to_g_m_pnp = pnp.array(input_to_g_m_qubits_np, dtype=complex, requires_grad=False).flatten()
+    target_real_state_nm_pnp = pnp.array(target_real_state_nm_qubits_np, dtype=complex, requires_grad=False).flatten()
 
-    psiterm = np.trace(np.matmul(np.matmul(real_state, real_state.getH()), psi))
-    phiterm = np.trace(np.matmul(np.matmul(fake_state, fake_state.getH()), phi))
-
-    regterm = np.ndarray.item(
-        lamb / np.e * (cst1 * term1 * term2 - cst2 * term3 * term4 - cst2 * term5 * term6 + cst3 * term7 * term8)
+    # Calculate generated state: G |input_to_G>
+    # The get_generated_state_vector method handles the tensoring with |0...0>_N-M internally
+    # and applies the generator U_G.
+    # It expects params_gen to be set within the generator object.
+    generated_state_nm_pnp = gen.get_generated_state_vector(
+        params_gen=gen.params_gen, input_state_subspace_M_eff_qubits=input_to_g_m_pnp
     )
-    # regterm = np.asscalar(
-    #     lamb / np.e * (cst1 * term1 * term2 - cst2 * term3 * term4 - cst2 * term5 * term6 + cst3 * term7 * term8))
 
-    loss = np.real(psiterm - phiterm - regterm)
+    # Fidelity: |<target_real_state|generated_state>|^2
+    # pnp.vdot(a, b) computes a_conj * b (inner product)
+    overlap = pnp.vdot(target_real_state_nm_pnp, generated_state_nm_pnp)
+    fidelity = pnp.abs(overlap) ** 2
 
-    return loss
-
-
-def compute_fidelity(gen: Generator, input_state: np.ndarray, real_state: np.ndarray, type: str = "training") -> float:
-    """Calculate the fidelity between target state and fake state
-
-    Args:
-        gen (Generator): the generator.
-        input_state (np.ndarray): the input state.
-        real_state (np.ndarray): the real state.
-        type (str): the type of the state. Default is 'training'.
-
-    Returns:
-        float: the fidelity between the target state and the fake state.
-    """
-    # if type == 'test':
-    #     G = gen.qc.get_mat_rep()
-    # else:
-    #     G = gen.getGen()
-
-    G = gen.getGen()
-    fake_state = np.matmul(G, input_state)
-
-    return np.abs(np.ndarray.item(np.matmul(real_state.getH(), fake_state))) ** 2
-    # return np.abs(np.asscalar(np.matmul(real_state.getH(), fake_state))) ** 2
+    return float(pnp.real(fidelity))

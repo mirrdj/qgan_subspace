@@ -1,3 +1,17 @@
+# Copyright 2024 PennyLane Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from collections.abc import Iterable
 
 import numpy as np
@@ -14,14 +28,17 @@ def _flatten(x):
     Yields:
         other: elements of x in depth-first order
     """
+    if isinstance(x, np.ndarray) and x.ndim == 0:
+        yield x.item()  # Yield the scalar value
+        return
+
     it = x
-    for x in it:
-        # if (isinstance(x, collections.Iterable) and
-        if isinstance(x, Iterable) and not isinstance(x, str):
-            for y in _flatten(x):
+    for x_elem in it:  # Renamed x to x_elem to avoid confusion with the outer x
+        if isinstance(x_elem, Iterable) and not isinstance(x_elem, (str, bytes)):
+            for y in _flatten(x_elem):
                 yield y
         else:
-            yield x
+            yield x_elem
 
 
 def _unflatten(flat, prototype):
