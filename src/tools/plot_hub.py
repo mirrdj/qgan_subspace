@@ -70,7 +70,7 @@ def plt_fidelity_vs_iter(
     plt.tight_layout()
 
     # Save the figure
-    fig_path = os.path.join(config.figure_path, f"{config.system_size}qubit_{config.layer}_{indx}.png")
+    fig_path = os.path.join(config.figure_path, f"{config.system_size}qubit_{config.generator_layers}_{indx}.png")
     os.makedirs(os.path.dirname(fig_path), exist_ok=True)
     plt.savefig(fig_path)
     plt.close(fig)  # Close the figure to free memory

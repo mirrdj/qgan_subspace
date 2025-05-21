@@ -73,3 +73,28 @@ def get_params_shape_ZZ_X_Z(wires: int, layer: int):
     # Total params per layer = wires * 2 + (wires - 1)
     num_params_per_layer = wires * 2 + (wires - 1)
     return (layer * num_params_per_layer,)
+
+
+def get_ansatz_and_shape(ansatz_type: str):
+    """Returns the ansatz construction function and its parameter shape function
+    based on the ansatz_type.
+
+    Args:
+        ansatz_type (str): The type of ansatz (e.g., "XX_YY_ZZ_Z", "ZZ_X_Z").
+
+    Returns:
+        tuple: (ansatz_function, shape_function)
+
+    Raises:
+        ValueError: If the ansatz_type is not recognized.
+    """
+    if ansatz_type == "XX_YY_ZZ_Z":
+        return construct_qcircuit_XX_YY_ZZ_Z, get_params_shape_XX_YY_ZZ_Z
+    if ansatz_type == "ZZ_X_Z":  # Changed from elif to if
+        return construct_qcircuit_ZZ_X_Z, get_params_shape_ZZ_X_Z
+    # Add other ansatz types here as if blocks
+    # if ansatz_type == "another_ansatz":
+    #     return construct_another_ansatz, get_params_shape_another_ansatz
+
+    # If no match, raise error
+    raise ValueError(f"Unknown ansatz type: {ansatz_type}")

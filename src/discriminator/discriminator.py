@@ -20,24 +20,28 @@ import numpy as np  # For initializations or non-gradient parts
 import pennylane as qml
 from pennylane import numpy as pnp
 
+from generator.ansatz import get_ansatz_and_shape  # Import the new helper
 from optimizer.momentum_optimizer import MomentumOptimizer
 
 
 class Discriminator:
-    def __init__(self, system_size: int, num_disc_layers: int):
+    def __init__(
+        self, system_size: int, num_disc_layers: int, ansatz_type: str, learning_rate: float
+    ):  # Added learning_rate
         self.system_size = system_size  # N_eff
         self.num_disc_layers = num_disc_layers
         self.dev_disc = qml.device("default.qubit", wires=self.system_size)
 
-        # Define the ansatz for the discriminator circuit
-        num_params_per_layer = self.system_size * 2
-        total_params = (self.num_disc_layers * num_params_per_layer) + self.system_size
+        # Get ansatz and shape function based on type
+        self.ansatz_fn, self.params_shape_fn = get_ansatz_and_shape(ansatz_type)
 
-        self.params_disc = pnp.array(np.random.uniform(low=0, high=2 * np.pi, size=total_params), requires_grad=True)
+        # Define the ansatz for the discriminator circuit
+        params_shape = self.params_shape_fn(self.system_size, self.num_disc_layers)
+        self.params_disc = pnp.array(np.random.uniform(low=0, high=2 * np.pi, size=params_shape), requires_grad=True)
 
         self._discriminator_circuit_qnode = self._create_qnode()
 
-        self.optimizer_disc = MomentumOptimizer()  # Optimizer for params_disc
+        self.optimizer_disc = MomentumOptimizer(learning_rate=learning_rate)  # Pass learning_rate to optimizer
 
         self.grad_params_disc_fn = qml.grad(self.discriminator_cost_function, argnum=0)
 
@@ -48,20 +52,8 @@ class Discriminator:
         """
         qml.StatePrep(state_vector_to_evaluate, wires=range(self.system_size))
 
-        param_idx = 0
-        for _ in range(self.num_disc_layers):
-            for i in range(self.system_size):
-                qml.RY(disc_circuit_params[param_idx], wires=i)
-                param_idx += 1
-            for i in range(self.system_size):
-                qml.RZ(disc_circuit_params[param_idx], wires=i)
-                param_idx += 1
-            for i in range(self.system_size - 1):
-                qml.CNOT(wires=[i, i + 1])
-
-        for i in range(self.system_size):
-            qml.RY(disc_circuit_params[param_idx], wires=i)
-            param_idx += 1
+        # Use the selected ansatz function
+        self.ansatz_fn(self.system_size, self.num_disc_layers, disc_circuit_params)
 
         return qml.expval(qml.PauliZ(0))
 
@@ -132,10 +124,13 @@ class Discriminator:
         """Loads the discriminator's parameters from a file."""
         data = pnp.load(file_path, allow_pickle=False)
         loaded_params = data["params_disc"]
-        expected_shape = self.params_disc.shape
+
+        # Get expected shape using the params_shape_fn
+        expected_shape = self.params_shape_fn(self.system_size, self.num_disc_layers)
         if loaded_params.shape != expected_shape:
             raise ValueError(
-                f"Loaded parameters shape {loaded_params.shape} does not match expected shape {expected_shape}"
+                f"Loaded discriminator parameters shape {loaded_params.shape} "
+                f"does not match expected shape {expected_shape} for N={self.system_size}, layers={self.num_disc_layers}"
             )
 
         self.params_disc = pnp.array(loaded_params, requires_grad=True)

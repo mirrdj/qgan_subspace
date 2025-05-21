@@ -16,8 +16,8 @@
 
 import pennylane.numpy as pnp  # Use PennyLane's numpy
 
-from discriminator.discriminator import Discriminator  # Changed to absolute import
-from generator.generator import Generator  # Changed to absolute import
+from discriminator.discriminator import Discriminator  # Use absolute import from src
+from generator.generator import Generator  # Use absolute import from src
 
 
 def compute_cost(

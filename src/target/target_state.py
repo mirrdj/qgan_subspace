@@ -29,6 +29,25 @@ def get_zero_state(num_qubits: int) -> pnp.ndarray:
     return state_vector
 
 
+def get_ghz_state(num_qubits: int) -> pnp.ndarray:
+    """Get the GHZ (Greenberger–Horne–Zeilinger) state for `num_qubits`.
+    The state is (|0...0> + |1...1>) / sqrt(2).
+
+    Args:
+        num_qubits (int): The number of qubits in the system.
+
+    Returns:
+        pnp.ndarray: The GHZ state vector.
+    """
+    if num_qubits <= 0:
+        raise ValueError("Number of qubits must be positive.")
+
+    state_vector = pnp.zeros(2**num_qubits, dtype=complex)
+    state_vector[0] = 1.0 / pnp.sqrt(2)
+    state_vector[-1] = 1.0 / pnp.sqrt(2)  # Index for |1...1> is 2^N - 1
+    return state_vector
+
+
 def get_maximally_entangled_state(num_qubits_per_register: int) -> pnp.ndarray:
     """Get the maximally entangled state (Bell state generalization) for two registers
     of size `num_qubits_per_register` each, i.e., total `2 * num_qubits_per_register` qubits.

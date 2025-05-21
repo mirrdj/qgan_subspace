@@ -6,7 +6,7 @@ import numpy as np  # Keep standard numpy for operations not involving params
 import pennylane as qml
 from pennylane import numpy as pnp  # Use PennyLane's NumPy for automatic differentiation
 
-from generator.ansatz import construct_qcircuit_XX_YY_ZZ_Z, get_params_shape_XX_YY_ZZ_Z  # Default ansatz
+from generator.ansatz import get_ansatz_and_shape  # Import the new helper
 from optimizer.momentum_optimizer import MomentumOptimizer
 
 
@@ -16,14 +16,15 @@ class Generator:
         system_size_N: int,  # N_eff: qubits for the ansatz U_G
         system_size_M: int,  # M_eff: qubits for the input subspace state |psi_M>
         layer: int,
-        ansatz_fn=construct_qcircuit_XX_YY_ZZ_Z,
-        params_shape_fn=get_params_shape_XX_YY_ZZ_Z,
+        ansatz_type: str,  # New argument for ansatz type
+        learning_rate: float,  # New argument for learning rate
     ):
         self.system_size_N = system_size_N
         self.system_size_M = system_size_M
         self.layer = layer
-        self.ansatz_fn = ansatz_fn
-        self.params_shape_fn = params_shape_fn
+
+        # Get ansatz and shape function based on type
+        self.ansatz_fn, self.params_shape_fn = get_ansatz_and_shape(ansatz_type)
 
         self.dev_ansatz = qml.device("default.qubit", wires=self.system_size_N)
 
@@ -31,7 +32,7 @@ class Generator:
         # Initialize with a small standard deviation for stability
         self.params_gen = pnp.array(np.random.normal(0, 0.1, params_shape), requires_grad=True)
 
-        self.optimizer = MomentumOptimizer()
+        self.optimizer = MomentumOptimizer(learning_rate=learning_rate)  # Pass learning_rate to optimizer
 
         self._ansatz_qnode_for_state = qml.QNode(self._ansatz_circuit_state_prep, self.dev_ansatz, interface="autograd")
         self._ansatz_qnode_for_unitary = qml.QNode(self._ansatz_circuit_unitary, self.dev_ansatz, interface="autograd")
