@@ -37,6 +37,7 @@ def compute_fidelity(
     # Ensure inputs are PennyLane numpy arrays and detached
     input_to_g_m_pnp = pnp.array(input_to_g_m_qubits_np, dtype=complex, requires_grad=False).flatten()
     target_real_state_nm_pnp = pnp.array(target_real_state_nm_qubits_np, dtype=complex, requires_grad=False).flatten()
+
     # Calculate generated state: G |input_to_G>
     # The get_generated_state_vector method handles the tensoring with |0...0>_N-M internally
     # and applies the generator U_G.
