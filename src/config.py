@@ -24,16 +24,16 @@ class Config:
 
         # Learning Scripts
         self.extra_ancilla: bool = False  # If True, adds an ancilla to the generator's output space
-        self.iterations_epoch: int = 100
+        self.iterations_epoch: int = 200
         self.epochs: int = 10
 
         # Learning rate
         self.learning_rate: float = 0.01  # Unified learning rate for optimizers
 
         # System setting
-        self.system_size: int = 8  # Number of main qubits for the target state
+        self.system_size: int = 10  # Number of main qubits for the target state
         self.generator_layers: int = 10  # Number of layers in the generator ansatz
-        self.discriminator_layers: int = 2  # Number of layers for the discriminator circuit
+        self.discriminator_layers: int = 5  # Number of layers for the discriminator circuit
 
         # Initial state for the generator
         # "zero": |0...0> state
@@ -67,7 +67,7 @@ class Config:
         self.custom_target_state_vector: Optional[np.ndarray] = None
 
         # Cost function for the GAN
-        self.cost_function_type: Literal["original_qgan", "wasserstein_like", "fidelity_direct"] = "original_qgan"
+        self.cost_function_type: Literal["original_qgan"] = "original_qgan"
 
         # Set to None for new training or a specific timestamp string to load models
         self.load_ts_for_training: Optional[str] = None

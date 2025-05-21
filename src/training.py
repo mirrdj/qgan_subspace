@@ -19,8 +19,8 @@ import numpy as np  # For seeding and initial data arrays
 import pennylane.numpy as pnp  # For PennyLane operations
 
 from config import CFG, Config
-from cost_functions.cost_and_fidelity import compute_fidelity
 from discriminator.discriminator import Discriminator
+from fidelity.fidelity import compute_fidelity
 from generator.generator import Generator
 from runner.loading_helpers import load_models_if_specified
 from runner.training_runner import run_single_training, run_test_configurations
