@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,31 +18,31 @@ from datetime import datetime
 import numpy as np  # For seeding and initial data arrays
 import pennylane.numpy as pnp  # For PennyLane operations
 
-from config import CFG, Config
-from discriminator.discriminator import Discriminator
-from fidelity.fidelity import compute_fidelity  # Reverted to correct import path
-from generator.generator import Generator
-from runner.loading_helpers import load_models_if_specified
-from target.target_hamiltonian import construct_target  # Corrected import
-from target.target_state import get_ghz_state, get_zero_state  # Import get_ghz_state
+from circuit.discriminator import Discriminator
+from circuit.generator import Generator
+from circuit.initial_state import get_ghz_state, get_zero_state  # Import get_ghz_state
+from circuit.target_hamiltonian import construct_target  # Corrected import
+from config import Config
 from tools.data_managers import (
     save_fidelity_loss,
     save_theta,
+    train_log,
 )
+from tools.loading_helpers import load_models_if_specified
 from tools.plot_hub import plt_fidelity_vs_iter
+from training.fidelity import compute_fidelity  # Reverted to correct import path
 
 np.random.seed()  # Seed for initial parameter generation in Generator/Discriminator
 
 
 class Training:
-    def __init__(self, config_module: Config, train_log_fn, load_timestamp=None):
+    def __init__(self, config_module: Config):
         """Builds the configuration for the Training. You might wanna comment/discomment lines, for changing the model."""
         self.cf: Config = config_module
-        self.train_log = train_log_fn  # train_log is passed as an argument
 
         # Determine effective qubit numbers based on config
-        self.N_main = self.cf.system_size
-        self.M_main = self.cf.system_size  # Input subspace size before ancilla consideration
+        self.N_main = self.cf.num_qubits
+        self.M_main = self.cf.num_qubits  # Input subspace size before ancilla consideration
 
         if self.cf.extra_ancilla:
             self.N_eff = self.N_main + 1  # N_eff: qubits for U_G and target state
@@ -50,100 +50,75 @@ class Training:
         else:
             self.N_eff = self.N_main
             self.M_eff = self.M_main
+        ################################################################################################################
+        # TODO: Change above logic, by a more readable and correct one:
+        ################################################################################################################
+        # - in_target_q = num_qubits
+        # - total_target_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
+
+        # - in_gen_q = num_qubits (+ 1 if extra_ancilla)
+        # - total_gen_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla)
+        # - total_gen_q_after_get_rid_of_ancilla = (num_qubits * 2 if ghz else num_qubits) [only applicable if extra_ancilla in "project" or "trace_out" mode]
+
+        # - in_disc_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
+        ################################################################################################################
 
         # self.input_state is |psi_M>, the input to the generator's subspace logic.
         # It should be a state vector of M_eff qubits.
-        if self.cf.generator_initial_state_type == "zero":
+        if self.cf.initial_state == "zero":
             self.input_state = get_zero_state(self.M_eff)
-        elif self.cf.generator_initial_state_type == "maximally_entangled":
-            self.train_log(
+        elif self.cf.initial_state == "ghz":
+            train_log(
                 f"Using GHZ state as initial state for the generator with {self.M_eff} qubits.\n",
-                self.cf.get_log_path(),
+                self.cf.log_path,
             )
             self.input_state = get_ghz_state(self.M_eff)
         else:
-            # Default to zero state if type is unknown
-            self.train_log(
-                f"Warning: Unknown generator_initial_state_type '{self.cf.generator_initial_state_type}'. Defaulting to zero state for {self.M_eff} qubits.\n",
-                self.cf.get_log_path(),
+            raise ValueError(
+                f"Unknown initial state type: {self.cf.initial_state}. Supported types are 'zero' and 'ghz'."
             )
-            self.input_state = get_zero_state(self.M_eff)
 
         self.input_state = pnp.array(self.input_state, dtype=complex, requires_grad=False)
 
         # Target Unitary (acts on N_eff qubits) or state vector
-        if self.cf.target_type == "custom_state_vector":
-            self.target_unitary = None  # Target is a state vector, not a unitary
-            self.train_log(f"Using custom target state vector for {self.N_eff} qubits.\n", self.cf.get_log_path())
-        else:
-            self.train_log(
-                f"Constructing target unitary for type '{self.cf.target_type}' on {self.N_eff} qubits.\n",
-                self.cf.get_log_path(),
-            )
-            # Corrected call: pass N_eff first, then config object, then train_log
-            self.target_unitary = construct_target(self.N_eff, self.cf, self.train_log)
-            self.target_unitary = pnp.array(self.target_unitary, dtype=complex, requires_grad=False)
+        train_log(
+            f"Constructing target unitary for type '{self.cf.target_hamiltonian}' on {self.N_eff} qubits.\n",
+            self.cf.log_path,
+        )
+        # Corrected call: pass N_eff first, then config object
+        self.target_unitary = construct_target(self.N_eff, self.cf)
+        self.target_unitary = pnp.array(self.target_unitary, dtype=complex, requires_grad=False)
 
         if self.cf.extra_ancilla:
-            self.N_tot = 2 * self.cf.system_size
+            self.N_tot = 2 * self.cf.num_qubits
         else:
-            self.N_tot = self.cf.system_size
+            self.N_tot = self.cf.num_qubits
 
         # Generator
         self.gen = Generator(
-            system_size_N=self.N_eff,
-            system_size_M=self.M_eff,
-            layer=self.cf.generator_layers,
-            ansatz_type=self.cf.ansatz_gen_type,  # Pass ansatz type string
+            num_qubits_N=self.N_eff,
+            num_qubits_M=self.M_eff,
+            layer=self.cf.gen_layers,
+            ansatz_type=self.cf.ansatz_gen,  # Pass ansatz type string
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # Real state: U_target |reference_state_N>
-        self.real_state = self.initialize_target_state()
+        # Real state: U_target |input_state>
+        # self.target_unitary should be already constructed based on target_hamiltonian
+        self.real_state = self.target_unitary @ self.input_state  # TODO: if ghz, make half pass, and add the rest later
         self.real_state = pnp.array(self.real_state, dtype=complex, requires_grad=False)
 
         # Discriminator (acts on N_eff qubits)
         self.discriminator_total_qubits = self.N_eff
         self.dis = Discriminator(
-            system_size=self.N_eff,
-            num_disc_layers=self.cf.discriminator_layers,
-            ansatz_type=self.cf.ansatz_disc_type,  # Pass ansatz type string
+            num_qubits=self.N_eff,
+            num_disc_layers=self.cf.disc_layers,
+            ansatz_type=self.cf.ansatz_disc,  # Pass ansatz type string
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        load_models_if_specified(self, load_timestamp, self.cf, self.train_log)
-
-    def initialize_target_state(self) -> pnp.ndarray:
-        """Initialize the target state: U_target |reference_state_N_eff> or custom state vector."""
-        if self.cf.target_type == "custom_state_vector":
-            if self.cf.custom_target_state_vector is not None:
-                # Ensure the custom state vector matches N_eff
-                expected_dim = 2**self.N_eff
-                if self.cf.custom_target_state_vector.shape != (expected_dim,):
-                    error_msg = f"Custom target state vector shape {self.cf.custom_target_state_vector.shape} does not match expected dimension ({expected_dim},) for {self.N_eff} qubits."
-                    self.train_log(error_msg + "\n", self.cf.get_log_path())
-                    raise ValueError(error_msg)
-                # Normalize the custom state vector
-                norm = pnp.linalg.norm(self.cf.custom_target_state_vector)
-                if not pnp.isclose(norm, 1.0):
-                    warn_msg = f"Warning: Custom target state vector norm is {norm}. Normalizing."
-                    self.train_log(warn_msg + "\n", self.cf.get_log_path())
-                    state_vec = self.cf.custom_target_state_vector / norm
-                else:
-                    state_vec = self.cf.custom_target_state_vector
-                return pnp.array(state_vec, dtype=complex, requires_grad=False)
-            error_msg = "Target type is custom_state_vector, but no vector is provided in config."
-            self.train_log(error_msg + "\n", self.cf.get_log_path())
-            raise ValueError(error_msg)
-
-        # For other target types, assume U_target @ |0...0>
-        # Reference state is |0...0> on N_eff qubits
-        reference_state_N_eff = get_zero_state(self.N_eff)
-        reference_state_N_eff = pnp.array(reference_state_N_eff, requires_grad=False)  # Ensure it's an array
-
-        # self.target_unitary should be already constructed based on target_type
-        real_state_vector = self.target_unitary @ reference_state_N_eff
-        return real_state_vector
+        # Load models if specified (only the params) # TODO: Make this compatible with adding ancilla & ghz later
+        load_models_if_specified(self, self.cf)
 
     def run(self):
         """Run the training, saving the data, the model, the logs, and the results plots."""
@@ -155,7 +130,7 @@ class Training:
         num_epochs = 0
 
         initial_fidelity_log = f"Initial Fidelity: {f:.6f}\n"
-        self.train_log(initial_fidelity_log, self.cf.get_log_path())
+        train_log(initial_fidelity_log, self.cf.log_path)
 
         while f < 0.99:
             fidelities_epoch = np.zeros(self.cf.iterations_epoch)
@@ -169,7 +144,7 @@ class Training:
             for iter_idx in range(self.cf.iterations_epoch):
                 iter_start_time = time.time()
                 loop_header = f"==================================================\nEpoch {num_epochs}, Iteration {iter_idx + 1}, Learning_Rate {self.cf.learning_rate}\n"
-                self.train_log(loop_header, self.cf.get_log_path())
+                train_log(loop_header, self.cf.log_path)
 
                 self.gen.update_gen(self.dis, self.input_state)
                 self.dis.update_dis(self.gen, self.real_state, self.input_state)
@@ -194,7 +169,7 @@ class Training:
 
                 iter_time = time.time() - iter_start_time
                 iter_log_msg = f"Fidelity: {current_fidelity:.6f}, G_Loss: {cost_G:.6f}, D_Loss: {cost_D:.6f}, D-G Loss: {cost_D_minus_G:.6f}, Iter time: {iter_time:.2f}s\n==================================================\n"
-                self.train_log(iter_log_msg, self.cf.get_log_path())
+                train_log(iter_log_msg, self.cf.log_path)
 
                 if (iter_idx + 1) % 10 == 0:
                     endtime = datetime.now()
@@ -205,7 +180,7 @@ class Training:
                         f"Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | "
                         f"Duration (hrs): {training_duration_hours:.2f}\n"
                     )
-                    self.train_log(log_param_str, self.cf.get_log_path())
+                    train_log(log_param_str, self.cf.log_path)
 
             f = fidelities_epoch[-1]
             fidelities_history.extend(fidelities_epoch.tolist())
@@ -215,7 +190,7 @@ class Training:
 
             epoch_duration = time.time() - epoch_start_time
             epoch_log_msg = f"Epoch {num_epochs} completed. Fidelity: {f:.6f}. Duration: {epoch_duration:.2f}s\n"
-            self.train_log(epoch_log_msg, self.cf.get_log_path())
+            train_log(epoch_log_msg, self.cf.log_path)
 
             plot_every = getattr(self.cf, "plot_every_epochs", 1)
             if num_epochs % plot_every == 0:
@@ -230,11 +205,11 @@ class Training:
 
             if num_epochs >= self.cf.epochs:
                 max_epoch_log = f"Maximum number of epochs ({self.cf.epochs}) reached.\n"
-                self.train_log(max_epoch_log, self.cf.get_log_path())
+                train_log(max_epoch_log, self.cf.log_path)
                 break
 
         training_finished_log = "Training finished.\n"
-        self.train_log(training_finished_log, self.cf.get_log_path())
+        train_log(training_finished_log, self.cf.log_path)
 
         plt_fidelity_vs_iter(
             np.array(fidelities_history),
@@ -245,14 +220,14 @@ class Training:
             num_epochs,
         )
 
-        save_fidelity_loss(np.array(fidelities_history), np.array(losses_G_history), self.cf.get_fid_loss_path())
+        save_fidelity_loss(np.array(fidelities_history), np.array(losses_G_history), self.cf.fid_loss_path)
 
-        self.gen.save_model(self.cf.get_model_gen_path())
-        self.dis.save_model(self.cf.get_model_dis_path())
+        self.gen.save_model(self.cf.model_gen_path)
+        self.dis.save_model(self.cf.model_dis_path)
 
-        save_theta(self.gen.params_gen, self.cf.get_theta_path())
+        save_theta(self.gen.params_gen, self.cftheta_path)
 
         endtime = datetime.now()
         total_training_time_seconds = (endtime - starttime).total_seconds()
         total_time_log = f"Total training time: {total_training_time_seconds:.2f} seconds\\nEnd of training script.\\n"
-        self.train_log(total_time_log, self.cf.get_log_path())
+        train_log(total_time_log, self.cf.log_path)

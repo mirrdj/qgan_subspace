@@ -6,29 +6,29 @@ import numpy as np  # Keep standard numpy for operations not involving params
 import pennylane as qml
 from pennylane import numpy as pnp  # Use PennyLane's NumPy for automatic differentiation
 
-from generator.ansatz import get_ansatz_and_shape  # Import the new helper
-from optimizer.momentum_optimizer import MomentumOptimizer
+from circuit.ansatz import get_ansatz_and_shape  # Import the new helper
+from training.optimizer import MomentumOptimizer
 
 
 class Generator:
     def __init__(
         self,
-        system_size_N: int,  # N_eff: qubits for the ansatz U_G
-        system_size_M: int,  # M_eff: qubits for the input subspace state |psi_M>
+        num_qubits_N: int,  # N_eff: qubits for the ansatz U_G
+        num_qubits_M: int,  # M_eff: qubits for the input subspace state |psi_M>
         layer: int,
         ansatz_type: str,  # New argument for ansatz type
         learning_rate: float,  # New argument for learning rate
     ):
-        self.system_size_N = system_size_N
-        self.system_size_M = system_size_M
+        self.num_qubits_N = num_qubits_N
+        self.num_qubits_M = num_qubits_M
         self.layer = layer
 
         # Get ansatz and shape function based on type
         self.ansatz_fn, self.params_shape_fn = get_ansatz_and_shape(ansatz_type)
 
-        self.dev_ansatz = qml.device("default.qubit", wires=self.system_size_N)
+        self.dev_ansatz = qml.device("default.qubit", wires=self.num_qubits_N)
 
-        params_shape = self.params_shape_fn(self.system_size_N, self.layer)
+        params_shape = self.params_shape_fn(self.num_qubits_N, self.layer)
         # Initialize with a small standard deviation for stability
         self.params_gen = pnp.array(np.random.normal(0, 0.1, params_shape), requires_grad=True)
 
@@ -39,13 +39,13 @@ class Generator:
 
     def _ansatz_circuit_state_prep(self, params, initial_state_vector_N_eff):
         """Applies ansatz to a given initial state vector on N_eff qubits."""
-        qml.StatePrep(initial_state_vector_N_eff, wires=range(self.system_size_N))
-        self.ansatz_fn(self.system_size_N, self.layer, params)
+        qml.StatePrep(initial_state_vector_N_eff, wires=range(self.num_qubits_N))
+        self.ansatz_fn(self.num_qubits_N, self.layer, params)
         return qml.state()
 
     def _ansatz_circuit_unitary(self, params):
         """Circuit to get the unitary matrix of the ansatz on N_eff qubits."""
-        self.ansatz_fn(self.system_size_N, self.layer, params)
+        self.ansatz_fn(self.num_qubits_N, self.layer, params)
         return qml.state()
 
     def get_ansatz_unitary(self, params_gen):
@@ -57,12 +57,12 @@ class Generator:
         Generates the fake state vector: U_G(params_gen) |psi_input_N_eff>,
         where |psi_input_N_eff> = |input_state_subspace_M_eff_qubits (x) |0...0>_{N_eff-M_eff}>.
         """
-        dim_N_eff = 2**self.system_size_N
-        dim_M_eff = 2**self.system_size_M
+        dim_N_eff = 2**self.num_qubits_N
+        dim_M_eff = 2**self.num_qubits_M
 
-        if self.system_size_M > self.system_size_N:
+        if self.num_qubits_M > self.num_qubits_N:
             raise ValueError(
-                f"M_eff (system_size_M={self.system_size_M}) cannot be larger than N_eff (system_size_N={self.system_size_N})"
+                f"M_eff (num_qubits_M={self.num_qubits_M}) cannot be larger than N_eff (num_qubits_N={self.num_qubits_N})"
             )
 
         initial_state_N_eff_vec = pnp.zeros(dim_N_eff, dtype=complex)
@@ -71,10 +71,10 @@ class Generator:
         if len(input_state_subspace_pnp) != dim_M_eff:
             raise ValueError(
                 f"Provided input_state_subspace_M_eff_qubits (length {len(input_state_subspace_pnp)}) "
-                f"does not match expected dimension for M_eff={self.system_size_M} (2**{self.system_size_M}={dim_M_eff})"
+                f"does not match expected dimension for M_eff={self.num_qubits_M} (2**{self.num_qubits_M}={dim_M_eff})"
             )
 
-        if self.system_size_M == self.system_size_N:
+        if self.num_qubits_M == self.num_qubits_N:
             if dim_M_eff != dim_N_eff:
                 raise ValueError("Dimension mismatch even when M_eff == N_eff. This shouldn't happen.")
             initial_state_N_eff_vec = input_state_subspace_pnp
@@ -136,11 +136,11 @@ class Generator:
         data = pnp.load(file_path, allow_pickle=False)
         loaded_params = data["params_gen"]
 
-        expected_shape = self.params_shape_fn(self.system_size_N, self.layer)
+        expected_shape = self.params_shape_fn(self.num_qubits_N, self.layer)
         if loaded_params.shape != expected_shape:
             raise ValueError(
                 f"Loaded generator parameters shape {loaded_params.shape} "
-                f"does not match expected shape {expected_shape} for N={self.system_size_N}, layers={self.layer}"
+                f"does not match expected shape {expected_shape} for N={self.num_qubits_N}, layers={self.layer}"
             )
 
         self.params_gen = pnp.array(loaded_params, requires_grad=True)

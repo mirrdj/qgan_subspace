@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,35 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-
-from config import CFG
-from runner.training_runner import run_single_training, run_test_configurations
-from tools.data_managers import train_log
-from training import Training  # Import the Training class
+from config import CFG, test_configurations
+from tools.data_managers import print_and_train_log
+from tools.training_initialization import run_single_training, run_test_configurations
 
 
 def main():
-    parser = argparse.ArgumentParser(description="QGAN Subspace Training Script")
-    parser.add_argument(
-        "--load_timestamp",
-        type=str,
-        default=None,
-        help="Timestamp of the model to load (e.g., 'YYYYMMDD_HHMMSS')",
-    )
-    parser.add_argument(
-        "--testing",
-        action="store_true",
-        help="Run with test configurations instead of the main configuration",
-    )
-    args = parser.parse_args()
+    ##############################################################
+    # TESTING mode
+    ##############################################################
+    if CFG.testing:
+        print_and_train_log("Running in TESTING mode.\n", CFG.log_path)
+        run_test_configurations(test_configurations)
 
-    if args.testing:
-        train_log("Running in TESTING mode.\n", CFG.get_log_path())
-        run_test_configurations(CFG, train_log, Training, load_timestamp=args.load_timestamp)
+    ##############################################################
+    # SINGLE RUN mode
+    ##############################################################
     else:
-        train_log("Running in NORMAL mode.\n", CFG.get_log_path())
-        run_single_training(CFG, train_log, Training, load_timestamp=args.load_timestamp)
+        if CFG.load_timestamp:
+            run_message = f"\nAttempting to load models from timestamp: {CFG.load_timestamp} and continue training...\n"
+        else:
+            run_message = "\nRunning with default configuration from config.py (new training)...\n"
+        print_and_train_log(run_message, CFG.log_path)
+        run_single_training()
 
 
 if __name__ == "__main__":

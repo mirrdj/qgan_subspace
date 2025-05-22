@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ def plt_fidelity_vs_iter(
         losses_G (np.ndarray): Array of Generator loss values.
         losses_D (np.ndarray): Array of Discriminator loss values.
         losses_D_minus_G (np.ndarray): Array of (Discriminator Loss - Generator Loss) values.
-        config: Configuration object with attributes like figure_path, system_size, label.
+        config: Configuration object with attributes like figure_path, num_qubits, label.
         indx (int): Index for the figure filename.
     """
     fig, axs = plt.subplots(1, 2, figsize=(15, 5))  # Changed to 1 row, 2 columns
@@ -70,7 +70,7 @@ def plt_fidelity_vs_iter(
     plt.tight_layout()
 
     # Save the figure
-    fig_path = os.path.join(config.figure_path, f"{config.system_size}qubit_{config.generator_layers}_{indx}.png")
+    fig_path = os.path.join(config.figure_path, f"{config.num_qubits}qubit_{config.gen_layers}_{indx}.png")
     os.makedirs(os.path.dirname(fig_path), exist_ok=True)
     plt.savefig(fig_path)
     plt.close(fig)  # Close the figure to free memory
@@ -116,7 +116,7 @@ def plt_fidelity_vs_iter_projection(
     plt.tight_layout()
 
     # Save the figure
-    fig_path = os.path.join(config.figure_path, f"{config.system_size}qubit_{config.label}_projection_{indx}.png")
+    fig_path = os.path.join(config.figure_path, f"{config.num_qubits}qubit_{config.label}_projection_{indx}.png")
     os.makedirs(os.path.dirname(fig_path), exist_ok=True)
     plt.savefig(fig_path)
     plt.close(fig)  # Close the figure

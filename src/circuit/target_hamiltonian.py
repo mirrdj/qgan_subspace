@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,56 +17,43 @@ import sys
 import numpy as np  # Add standard numpy
 import pennylane as qml
 import scipy.linalg  # Add scipy.linalg
-from pennylane import numpy as pnp  # Use PennyLane's numpy
+from pennylane import numpy as pnp
+
+from config import Config  # Use PennyLane's numpy
 
 
-def construct_target(
-    num_qubits: int, Z_terms: bool = False, ZZ_terms: bool = False, ZZZ_terms: bool = False, I_term: bool = False
-) -> pnp.ndarray:
+def construct_target(num_qubits: int, config_module: Config) -> pnp.ndarray:
+    if config_module.target_hamiltonian == "cluster_h":
+        return construct_clusterH(num_qubits)
+    if config_module.target_hamiltonian == "rotated_surface_code_h":
+        return construct_RotatedSurfaceCode(num_qubits)
+    if config_module.target_hamiltonian == "custom_h":
+        return custom_target(
+            num_qubits,
+            Z_terms=config_module.Z_terms,
+            ZZ_terms=config_module.ZZ_terms,
+            ZZZ_terms=config_module.ZZZ_terms,
+            I_term=config_module.I_term,
+        )
+
+    raise ValueError(
+        f"Target Hamiltonian '{config_module.target_hamiltonian}' not from the available options: 'cluster_h', 'rotated_surface_code_h', 'custom_h'."
+    )
+
+
+def custom_target(num_qubits: int, config_module: Config) -> pnp.ndarray:
     """Construct target Hamiltonian unitary U = exp(-iH).
 
     Args:
         num_qubits (int): The number of qubits in the system.
-        Z_terms (bool): Whether to include single Z terms.
-        ZZ_terms (bool): Whether to include ZZ interaction terms.
-        ZZZ_terms (bool): Whether to include ZZZ interaction terms.
-        I_term (bool): If True, H is the identity matrix, overriding other terms.
+        config_module (Config): Configuration module containing options for Hamiltonian construction.
 
     Returns:
         pnp.ndarray: The unitary matrix exp(-iH).
     """
-    if I_term:
-        H_matrix = pnp.eye(2**num_qubits, dtype=complex)
-    else:
-        coeffs = []
-        obs = []
-        if Z_terms:
-            for i in range(num_qubits):
-                coeffs.append(1.0)
-                obs.append(qml.PauliZ(i))
-        if ZZ_terms:
-            for i in range(num_qubits - 1):
-                coeffs.append(1.0)
-                obs.append(qml.PauliZ(i) @ qml.PauliZ(i + 1))
-        if ZZZ_terms:
-            for i in range(num_qubits - 2):
-                coeffs.append(1.0)
-                obs.append(qml.PauliZ(i) @ qml.PauliZ(i + 1) @ qml.PauliZ(i + 2))
-
-        if not obs:  # No terms selected, H is effectively zero
-            H_matrix = pnp.zeros((2**num_qubits, 2**num_qubits), dtype=complex)
-        else:
-            hamiltonian = qml.Hamiltonian(coeffs, obs)
-            H_matrix_qml = qml.matrix(hamiltonian, wire_order=range(num_qubits))
-            if H_matrix_qml is None:  # Should not happen if obs is not empty
-                H_matrix = pnp.zeros((2**num_qubits, 2**num_qubits), dtype=complex)
-            else:
-                # Ensure H_matrix is a pnp.ndarray
-                H_matrix = pnp.array(H_matrix_qml, dtype=complex)
-
-    H_np = np.asarray(H_matrix)  # Convert to standard NumPy array
-    exp_H_np = scipy.linalg.expm(-1j * H_np)
-    return pnp.array(exp_H_np, dtype=complex)
+    # TODO: Create a custom Hamiltonian based on the provided configuration in:
+    # - config_module.custom_hamiltonian_obs
+    # - config_module.custom_hamiltonian_coeffs
 
 
 def construct_clusterH(num_qubits: int) -> pnp.ndarray:

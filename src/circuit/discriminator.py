@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,23 +20,23 @@ import numpy as np  # For initializations or non-gradient parts
 import pennylane as qml
 from pennylane import numpy as pnp
 
-from generator.ansatz import get_ansatz_and_shape  # Import the new helper
-from optimizer.momentum_optimizer import MomentumOptimizer
+from circuit.ansatz import get_ansatz_and_shape  # Import the new helper
+from training.optimizer import MomentumOptimizer
 
 
 class Discriminator:
     def __init__(
-        self, system_size: int, num_disc_layers: int, ansatz_type: str, learning_rate: float
+        self, num_qubits: int, num_disc_layers: int, ansatz_type: str, learning_rate: float
     ):  # Added learning_rate
-        self.system_size = system_size  # N_eff
+        self.num_qubits = num_qubits  # N_eff
         self.num_disc_layers = num_disc_layers
-        self.dev_disc = qml.device("default.qubit", wires=self.system_size)
+        self.dev_disc = qml.device("default.qubit", wires=self.num_qubits)
 
         # Get ansatz and shape function based on type
         self.ansatz_fn, self.params_shape_fn = get_ansatz_and_shape(ansatz_type)
 
         # Define the ansatz for the discriminator circuit
-        params_shape = self.params_shape_fn(self.system_size, self.num_disc_layers)
+        params_shape = self.params_shape_fn(self.num_qubits, self.num_disc_layers)
         self.params_disc = pnp.array(np.random.uniform(low=0, high=2 * np.pi, size=params_shape), requires_grad=True)
 
         self._discriminator_circuit_qnode = self._create_qnode()
@@ -50,10 +50,10 @@ class Discriminator:
         Defines the discriminator's quantum circuit structure.
         This method is intended to be wrapped by a QNode.
         """
-        qml.StatePrep(state_vector_to_evaluate, wires=range(self.system_size))
+        qml.StatePrep(state_vector_to_evaluate, wires=range(self.num_qubits))
 
         # Use the selected ansatz function
-        self.ansatz_fn(self.system_size, self.num_disc_layers, disc_circuit_params)
+        self.ansatz_fn(self.num_qubits, self.num_disc_layers, disc_circuit_params)
 
         return qml.expval(qml.PauliZ(0))
 
@@ -126,11 +126,11 @@ class Discriminator:
         loaded_params = data["params_disc"]
 
         # Get expected shape using the params_shape_fn
-        expected_shape = self.params_shape_fn(self.system_size, self.num_disc_layers)
+        expected_shape = self.params_shape_fn(self.num_qubits, self.num_disc_layers)
         if loaded_params.shape != expected_shape:
             raise ValueError(
                 f"Loaded discriminator parameters shape {loaded_params.shape} "
-                f"does not match expected shape {expected_shape} for N={self.system_size}, layers={self.num_disc_layers}"
+                f"does not match expected shape {expected_shape} for N={self.num_qubits}, layers={self.num_disc_layers}"
             )
 
         self.params_disc = pnp.array(loaded_params, requires_grad=True)

@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,12 @@ import pennylane.numpy as pnp  # Import PennyLane numpy
 def train_log(param, file_path):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, "a") as file:
-        file.write(param)
+        file.write(param.strip() + "\n")
+
+
+def print_and_train_log(param, file_path):
+    print(param)  # Console feedback
+    train_log(param, file_path)  # Logging to file
 
 
 def load_model(file_path):

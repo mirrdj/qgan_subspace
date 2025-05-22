@@ -1,4 +1,4 @@
-# Copyright 2024 PennyLane Team
+# Copyright 2025 GIQ, Universitat Autònoma de Barcelona
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,12 +16,11 @@
 
 import pennylane.numpy as pnp  # Use PennyLane's numpy
 
-from discriminator.discriminator import Discriminator  # Use absolute import from src
-from generator.generator import Generator  # Use absolute import from src
+from circuit.generator import Generator
 
 
 def compute_fidelity(
-    gen: Generator, input_to_g_m_qubits_np: pnp.ndarray, target_real_state_nm_qubits_np: pnp.ndarray
+    gen: Generator, input_to_gen_m_qubits_np: pnp.ndarray, target_real_state_nm_qubits_np: pnp.ndarray
 ) -> float:
     """Calculate the fidelity between the generated state and the target real state.
     Fidelity = |<target_real_state|generated_state>|^2.
@@ -35,7 +34,7 @@ def compute_fidelity(
         float: The fidelity.
     """
     # Ensure inputs are PennyLane numpy arrays and detached
-    input_to_g_m_pnp = pnp.array(input_to_g_m_qubits_np, dtype=complex, requires_grad=False).flatten()
+    input_to_g_m_pnp = pnp.array(input_to_gen_m_qubits_np, dtype=complex, requires_grad=False).flatten()
     target_real_state_nm_pnp = pnp.array(target_real_state_nm_qubits_np, dtype=complex, requires_grad=False).flatten()
 
     # Calculate generated state: G |input_to_G>

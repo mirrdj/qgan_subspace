@@ -9,7 +9,7 @@ def construct_qcircuit_XX_YY_ZZ_Z(wires: int, layer: int, params: np.ndarray):
     """Construct a quantum circuit with the ansatz of XX, YY, ZZ rotations and Z rotations using PennyLane.
 
     Args:
-        wires (int): Number of qubits (system_size).
+        wires (int): Number of qubits (num_qubits).
         layer (int): Number of layers in the ansatz.
         params (np.ndarray): Array of rotation parameters. Expected shape: (layer, num_gates_per_layer).
                              num_gates_per_layer = (size * 4) for XX, YY, ZZ, Z on each qubit (with wraparound for 2-qubit gates)
@@ -47,7 +47,7 @@ def construct_qcircuit_ZZ_X_Z(wires: int, layer: int, params: np.ndarray):
     """Construct a quantum circuit with the ansatz of ZZ, X and Z rotations using PennyLane.
 
     Args:
-        wires (int): Number of qubits (system_size).
+        wires (int): Number of qubits (num_qubits).
         layer (int): Number of layers in the ansatz.
         params (np.ndarray): Array of rotation parameters. Expected shape: (layer, num_gates_per_layer)
                              num_gates_per_layer = (size * 2) for X, Z on each qubit + (size-1) for ZZ
