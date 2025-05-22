@@ -20,7 +20,7 @@ import pennylane.numpy as pnp  # For PennyLane operations
 
 from circuit.discriminator import Discriminator
 from circuit.generator import Generator
-from circuit.initial_state import get_ghz_state, get_zero_state  # Import get_ghz_state
+from circuit.initial_state import get_ghz_state, get_zero_state  # Import get_choi_state
 from circuit.target_hamiltonian import construct_target  # Corrected import
 from config import Config
 from tools.data_managers import (
@@ -54,28 +54,28 @@ class Training:
         # TODO: Change above logic, by a more readable and correct one:
         ################################################################################################################
         # - in_target_q = num_qubits
-        # - total_target_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
+        # - total_target_q = (num_qubits * 2 if choi else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
 
         # - in_gen_q = num_qubits (+ 1 if extra_ancilla)
-        # - total_gen_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla)
-        # - total_gen_q_after_get_rid_of_ancilla = (num_qubits * 2 if ghz else num_qubits) [only applicable if extra_ancilla in "project" or "trace_out" mode]
+        # - total_gen_q = (num_qubits * 2 if choi else num_qubits) (+ 1 if extra_ancilla)
+        # - total_gen_q_after_get_rid_of_ancilla = (num_qubits * 2 if choi else num_qubits) [only applicable if extra_ancilla in "project" or "trace_out" mode]
 
-        # - in_disc_q = (num_qubits * 2 if ghz else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
+        # - in_disc_q = (num_qubits * 2 if choi else num_qubits) (+ 1 if extra_ancilla in "pass" mode)
         ################################################################################################################
 
         # self.input_state is |psi_M>, the input to the generator's subspace logic.
         # It should be a state vector of M_eff qubits.
         if self.cf.initial_state == "zero":
             self.input_state = get_zero_state(self.M_eff)
-        elif self.cf.initial_state == "ghz":
+        elif self.cf.initial_state == "choi":
             train_log(
-                f"Using GHZ state as initial state for the generator with {self.M_eff} qubits.\n",
+                f"Using Choi state as initial state for the generator with {self.M_eff} qubits.\n",
                 self.cf.log_path,
             )
             self.input_state = get_ghz_state(self.M_eff)
         else:
             raise ValueError(
-                f"Unknown initial state type: {self.cf.initial_state}. Supported types are 'zero' and 'ghz'."
+                f"Unknown initial state type: {self.cf.initial_state}. Supported types are 'zero' and 'choi'."
             )
 
         self.input_state = pnp.array(self.input_state, dtype=complex, requires_grad=False)
@@ -105,7 +105,9 @@ class Training:
 
         # Real state: U_target |input_state>
         # self.target_unitary should be already constructed based on target_hamiltonian
-        self.real_state = self.target_unitary @ self.input_state  # TODO: if ghz, make half pass, and add the rest later
+        self.real_state = (
+            self.target_unitary @ self.input_state
+        )  # TODO: if choi, make only half pass to target, and add the rest later
         self.real_state = pnp.array(self.real_state, dtype=complex, requires_grad=False)
 
         # Discriminator (acts on N_eff qubits)
@@ -117,7 +119,7 @@ class Training:
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # Load models if specified (only the params) # TODO: Make this compatible with adding ancilla & ghz later
+        # Load models if specified (only the params) # TODO: Make this compatible with adding ancilla & choi later
         load_models_if_specified(self, self.cf)
 
     def run(self):

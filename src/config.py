@@ -48,8 +48,8 @@ class Config:
         #######################################################################
         self.num_qubits: int = 10  # Number of main qubits to study
 
-        # Initial state for the generator and target: |0...0> state or GHZ (maximal entanglement, choi)
-        self.initial_state: Literal["zero", "ghz"] = "ghz"  # ghz will double the number of qubits to compute
+        # Initial state for the generator and target: |0...0> state or Choi (maximal entanglement, choi)
+        self.initial_state: Literal["zero", "choi"] = "choi"  # choi will double the number of qubits to compute
         # TODO: Check this is implemented correctly in the generator, target and discriminator
 
         # If adding a helper ancilla  qubit:
@@ -105,7 +105,7 @@ test_configurations = [
         "iterations_epoch": 3,
         "disc_layers": 1,
         "gen_layers": 1,
-        "label_suffix": "c1_2q_1l_noanc_d1_ghz_XXYYZZZ_zero",
+        "label_suffix": "c1_2q_1l_noanc_d1_choi_XXYYZZZ_zero",
         "ansatz_gen": "XX_YY_ZZ_Z",
         "ansatz_disc": "XX_YY_ZZ_Z",
         "initial_state": "zero",
@@ -120,7 +120,7 @@ test_configurations = [
         "label_suffix": "c2_2q_1l_anc_d1_ZZXZ_choi",
         "ansatz_gen": "ZZ_X_Z",
         "ansatz_disc": "ZZ_X_Z",
-        "initial_state": "ghz",
+        "initial_state": "choi",
     },
     {
         "num_qubits": 2,
@@ -144,7 +144,7 @@ test_configurations = [
         "label_suffix": "c4_3q_1l_noanc_d1_ZZXZ_choi",
         "ansatz_gen": "ZZ_X_Z",
         "ansatz_disc": "ZZ_X_Z",
-        "initial_state": "ghz",
+        "initial_state": "choi",
     },
     # Add more configurations as needed
     {

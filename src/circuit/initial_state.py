@@ -48,9 +48,9 @@ def get_ghz_state(num_qubits: int) -> pnp.ndarray:
     return state_vector
 
 
-# TODO: Confirm which ghz definition is incorrect:
+# TODO: Confirm which choi definition is incorrect:
 
-# def get_ghz_state(num_qubits_per_register: int) -> pnp.ndarray:
+# def get_choi_state(num_qubits_per_register: int) -> pnp.ndarray:
 #     """Get the maximally entangled state (Bell state generalization) for two registers
 #     of size `num_qubits_per_register` each, i.e., total `2 * num_qubits_per_register` qubits.
 #     The state is (1/sqrt(2^N)) * sum_{i=0}^{2^N-1} |i>|i>.
@@ -74,7 +74,7 @@ def get_ghz_state(num_qubits: int) -> pnp.ndarray:
 
 # TODO: Maybe implement maximally entangled state in a subspace??
 
-# def get_ghz_state_in_subspace(num_initial_qubits_per_register: int) -> pnp.ndarray:
+# def get_choi_state_in_subspace(num_initial_qubits_per_register: int) -> pnp.ndarray:
 #     """Get the maximally entangled state for a system where each of the two parties
 #     has `num_initial_qubits_per_register` plus one ancillary qubit in the |0> state.
 #     So, total qubits = 2 * (num_initial_qubits_per_register + 1).

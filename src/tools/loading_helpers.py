@@ -5,7 +5,7 @@ import traceback
 from tools.data_managers import print_and_train_log, train_log
 
 
-# TODO: Make this compatible with adding ancilla & ghz later
+# TODO: Make this compatible with adding ancilla & choi later
 def load_models_if_specified(training_instance, config_module):
     """
     Loads generator and discriminator models if a load_timestamp is provided.
