@@ -18,7 +18,6 @@ from datetime import datetime
 import numpy as np  # For seeding and initial data arrays
 import pennylane.numpy as pnp  # For PennyLane operations
 
-from circuit import initial_state
 from circuit.discriminator import Discriminator
 from circuit.generator import Generator
 from circuit.initial_state import get_choi_state, get_zero_state  # Import get_choi_state
@@ -116,7 +115,7 @@ class Training:
 
         # Generator
         self.gen = Generator(
-            # input_state=self.in_state, #TODO: Solve which state is passed to the generator
+            # input_state=self.in_state, #TODO: Solve which state/qubits is passed to the generator + internal logic
             num_qubits_N=self.N_eff,
             num_qubits_M=self.M_eff,
             layer=self.cf.gen_layers,
@@ -124,22 +123,22 @@ class Training:
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # TODO: Implement ancilla mode logic:
-        if self.cf.ancilla_mode == "pass":
-            disc_state = pnp.concatenate(self.in_state, self.out_state)
-        # elif self.cf.ancilla_mode == "project":
-        #     disc_state = pnp.concatenate(project_ancila(self.in_state), self.out_state)
-        # elif self.cf.ancilla_mode == "trace_out":
-        #     disc_state = pnp.concatenate(self.in_state[:-1], self.out_state)
-        else:
-            raise ValueError(
-                f"Unknown ancilla mode: {self.cf.ancilla_mode}. Supported modes are 'pass', 'project', and 'trace_out'."
-            )
+        # # TODO: Implement ancilla mode logic:
+        # if self.cf.ancilla_mode == "pass":
+        #     disc_state = pnp.concatenate(self.in_state, self.out_state)
+        # # elif self.cf.ancilla_mode == "project":
+        # #     disc_state = pnp.concatenate(project_ancila(self.in_state), self.out_state)
+        # # elif self.cf.ancilla_mode == "trace_out":
+        # #     disc_state = pnp.concatenate(self.in_state[:-1], self.out_state)
+        # else:
+        #     raise ValueError(
+        #         f"Unknown ancilla mode: {self.cf.ancilla_mode}. Supported modes are 'pass', 'project', and 'trace_out'."
+        #     )
 
         # Discriminator (acts on N_eff qubits)
         self.discriminator_total_qubits = self.N_eff
         self.dis = Discriminator(
-            # input_state=disc_state, #TODO: Solve which state is passed to the generator
+            # input_state=disc_state, #TODO: Solve which state/qubits is passed to the discriminator + internal logic
             num_qubits=self.N_eff,
             num_disc_layers=self.cf.disc_layers,
             ansatz_type=self.cf.ansatz_disc,  # Pass ansatz type string
