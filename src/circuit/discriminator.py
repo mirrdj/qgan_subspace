@@ -24,6 +24,7 @@ from circuit.ansatz import get_ansatz_and_shape  # Import the new helper
 from training.optimizer import MomentumOptimizer
 
 
+# TODO: Check that this is similar to the original code
 class Discriminator:
     def __init__(
         self, num_qubits: int, num_disc_layers: int, ansatz_type: str, learning_rate: float

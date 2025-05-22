@@ -48,7 +48,7 @@ def get_ghz_state(num_qubits: int) -> pnp.ndarray:
     return state_vector
 
 
-# TODO: Confirm the next ghz def, is incorrect:
+# TODO: Confirm which ghz definition is incorrect:
 
 # def get_ghz_state(num_qubits_per_register: int) -> pnp.ndarray:
 #     """Get the maximally entangled state (Bell state generalization) for two registers

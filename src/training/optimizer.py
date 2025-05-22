@@ -23,6 +23,7 @@ class MomentumOptimizer:
         self.learning_rate = learning_rate
         self.v = None
 
+    # TODO: Check that this is still the same as the original code
     def compute_grad(self, theta, grad_list, min_or_max):
         grad_list = _flatten(grad_list)
         theta_tmp = _flatten(theta)

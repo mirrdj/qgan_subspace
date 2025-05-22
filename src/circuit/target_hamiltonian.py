@@ -54,6 +54,9 @@ def custom_target(num_qubits: int, config_module: Config) -> pnp.ndarray:
     # TODO: Create a custom Hamiltonian based on the provided configuration in:
     # - config_module.custom_hamiltonian_obs
     # - config_module.custom_hamiltonian_coeffs
+    raise NotImplementedError(
+        "Custom Hamiltonian construction is not implemented. Please provide a valid Hamiltonian configuration."
+    )
 
 
 def construct_clusterH(num_qubits: int) -> pnp.ndarray:

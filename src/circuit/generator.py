@@ -10,6 +10,7 @@ from circuit.ansatz import get_ansatz_and_shape  # Import the new helper
 from training.optimizer import MomentumOptimizer
 
 
+# TODO: Check that this is similar to the original code
 class Generator:
     def __init__(
         self,
