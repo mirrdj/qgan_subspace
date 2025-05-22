@@ -104,6 +104,10 @@ class Training:
             self.real_state = self.target_unitary @ self.in_state
             self.real_state = pnp.concatenate(self.real_state, self.out_state)
 
+        if self.cf.extra_ancilla:  # TODO: when we have more modes, we need to add: and self.cf.ancilla_mode == "pass":
+            # If using an ancilla, we need to add it to the real state
+            self.real_state = pnp.concatenate((self.real_state, pnp.zeros((1,), dtype=complex)), axis=0)
+
         self.real_state = pnp.array(self.real_state, dtype=complex, requires_grad=False)
 
         if self.cf.extra_ancilla:
@@ -123,7 +127,7 @@ class Training:
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # # TODO: Implement ancilla mode logic:
+        # # TODO: Implement ancilla mode logic, when we have more modes:
         # if self.cf.ancilla_mode == "pass":
         #     disc_state = pnp.concatenate(self.in_state, self.out_state)
         # # elif self.cf.ancilla_mode == "project":
@@ -145,7 +149,7 @@ class Training:
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # Load models if specified (only the params) # TODO: Make this compatible with adding ancilla & choi later
+        # Load models if specified (only the params) # TODO: Make this compatible with adding ancilla & choi
         load_models_if_specified(self, self.cf)
 
     def run(self):
