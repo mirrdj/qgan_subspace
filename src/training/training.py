@@ -18,9 +18,10 @@ from datetime import datetime
 import numpy as np  # For seeding and initial data arrays
 import pennylane.numpy as pnp  # For PennyLane operations
 
+from circuit import initial_state
 from circuit.discriminator import Discriminator
 from circuit.generator import Generator
-from circuit.initial_state import get_ghz_state, get_zero_state  # Import get_choi_state
+from circuit.initial_state import get_choi_state, get_zero_state  # Import get_choi_state
 from circuit.target_hamiltonian import construct_target  # Corrected import
 from config import Config
 from tools.data_managers import (
@@ -50,6 +51,7 @@ class Training:
         else:
             self.N_eff = self.N_main
             self.M_eff = self.M_main
+
         ################################################################################################################
         # TODO: Change above logic, by a more readable and correct one:
         ################################################################################################################
@@ -72,7 +74,9 @@ class Training:
                 f"Using Choi state as initial state for the generator with {self.M_eff} qubits.\n",
                 self.cf.log_path,
             )
-            self.input_state = get_ghz_state(self.M_eff)
+            self.input_state = get_choi_state(self.M_eff)
+            self.in_state = self.input_state[: len(self.input_state) // 2 - 1]
+            self.out_state = self.input_state[len(self.input_state) // 2 :]
         else:
             raise ValueError(
                 f"Unknown initial state type: {self.cf.initial_state}. Supported types are 'zero' and 'choi'."
@@ -89,13 +93,30 @@ class Training:
         self.target_unitary = construct_target(self.N_eff, self.cf)
         self.target_unitary = pnp.array(self.target_unitary, dtype=complex, requires_grad=False)
 
+        # Real state: U_target |input_state>
+        # self.target_unitary should be already constructed based on target_hamiltonian
+
+        # If zero, make the real state the target unitary applied to the input state:
+        if self.cf.initial_state == "zero":
+            self.real_state = self.target_unitary @ self.input_state
+
+        # If choi, make only half pass to target, and add the rest later:
+        elif self.cf.initial_state == "choi":
+            self.real_state = self.target_unitary @ self.in_state
+            self.real_state = pnp.concatenate(self.real_state, self.out_state)
+
+        self.real_state = pnp.array(self.real_state, dtype=complex, requires_grad=False)
+
         if self.cf.extra_ancilla:
-            self.N_tot = 2 * self.cf.num_qubits
-        else:
-            self.N_tot = self.cf.num_qubits
+            train_log(
+                "Using an ancilla qubit in the generator and discriminator.\n",
+                self.cf.log_path,
+            )
+            self.in_state = pnp.concatenate((self.in_state, pnp.zeros((1,), dtype=complex)), axis=0)
 
         # Generator
         self.gen = Generator(
+            # input_state=self.in_state, #TODO: Solve which state is passed to the generator
             num_qubits_N=self.N_eff,
             num_qubits_M=self.M_eff,
             layer=self.cf.gen_layers,
@@ -103,16 +124,22 @@ class Training:
             learning_rate=self.cf.learning_rate,  # Pass unified learning rate
         )
 
-        # Real state: U_target |input_state>
-        # self.target_unitary should be already constructed based on target_hamiltonian
-        self.real_state = (
-            self.target_unitary @ self.input_state
-        )  # TODO: if choi, make only half pass to target, and add the rest later
-        self.real_state = pnp.array(self.real_state, dtype=complex, requires_grad=False)
+        # TODO: Implement ancilla mode logic:
+        if self.cf.ancilla_mode == "pass":
+            disc_state = pnp.concatenate(self.in_state, self.out_state)
+        # elif self.cf.ancilla_mode == "project":
+        #     disc_state = pnp.concatenate(project_ancila(self.in_state), self.out_state)
+        # elif self.cf.ancilla_mode == "trace_out":
+        #     disc_state = pnp.concatenate(self.in_state[:-1], self.out_state)
+        else:
+            raise ValueError(
+                f"Unknown ancilla mode: {self.cf.ancilla_mode}. Supported modes are 'pass', 'project', and 'trace_out'."
+            )
 
         # Discriminator (acts on N_eff qubits)
         self.discriminator_total_qubits = self.N_eff
         self.dis = Discriminator(
+            # input_state=disc_state, #TODO: Solve which state is passed to the generator
             num_qubits=self.N_eff,
             num_disc_layers=self.cf.disc_layers,
             ansatz_type=self.cf.ansatz_disc,  # Pass ansatz type string
