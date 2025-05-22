@@ -20,16 +20,14 @@ import pennylane.numpy as pnp  # For PennyLane operations
 
 from config import CFG, Config
 from discriminator.discriminator import Discriminator
-from fidelity.fidelity import compute_fidelity
+from fidelity.fidelity import compute_fidelity  # Reverted to correct import path
 from generator.generator import Generator
 from runner.loading_helpers import load_models_if_specified
-from runner.training_runner import run_single_training, run_test_configurations
 from target.target_hamiltonian import construct_target  # Corrected import
 from target.target_state import get_ghz_state, get_zero_state  # Import get_ghz_state
 from tools.data_managers import (
     save_fidelity_loss,
     save_theta,
-    train_log,
 )
 from tools.plot_hub import plt_fidelity_vs_iter
 
@@ -40,7 +38,7 @@ class Training:
     def __init__(self, config_module: Config, train_log_fn, load_timestamp=None):
         """Builds the configuration for the Training. You might wanna comment/discomment lines, for changing the model."""
         self.cf: Config = config_module
-        self.train_log = train_log_fn
+        self.train_log = train_log_fn  # train_log is passed as an argument
 
         # Determine effective qubit numbers based on config
         self.N_main = self.cf.system_size
@@ -256,93 +254,5 @@ class Training:
 
         endtime = datetime.now()
         total_training_time_seconds = (endtime - starttime).total_seconds()
-        total_time_log = f"Total training time: {total_training_time_seconds:.2f} seconds\nEnd of training script.\n"
+        total_time_log = f"Total training time: {total_training_time_seconds:.2f} seconds\\nEnd of training script.\\n"
         self.train_log(total_time_log, self.cf.get_log_path())
-
-
-if __name__ == "__main__":
-    testing = False  # Set to True to run test configurations
-
-    if not hasattr(CFG, "plot_every_epochs"):
-        CFG.plot_every_epochs = 1
-
-    load_timestamp_from_config = CFG.load_ts_for_training
-
-    if testing:
-        test_configurations = [
-            {
-                "system_size": 2,
-                "generator_layers": 1,
-                "extra_ancilla": False,
-                "iterations_epoch": 3,
-                "epochs": 1,
-                "discriminator_layers": 1,
-                "label_suffix": "c1_2q_1l_noanc_d1_ghz_XXYYZZZ_zero",
-                "target_type": "ghz_state",
-                "ansatz_gen_type": "XX_YY_ZZ_Z",
-                "ansatz_disc_type": "XX_YY_ZZ_Z",
-                "generator_initial_state_type": "zero",
-                "cost_function_type": "original_qgan",
-            },
-            {
-                "system_size": 2,
-                "generator_layers": 1,
-                "extra_ancilla": True,
-                "iterations_epoch": 3,
-                "epochs": 1,
-                "discriminator_layers": 1,
-                "label_suffix": "c2_2q_1l_anc_d1_ghz_ZZXZ_entangled",
-                "target_type": "ghz_state",
-                "ansatz_gen_type": "ZZ_X_Z",
-                "ansatz_disc_type": "ZZ_X_Z",
-                "generator_initial_state_type": "maximally_entangled",
-                "cost_function_type": "original_qgan",
-            },
-            {
-                "system_size": 2,
-                "generator_layers": 2,
-                "extra_ancilla": False,
-                "iterations_epoch": 3,
-                "epochs": 1,
-                "discriminator_layers": 2,
-                "label_suffix": "c3_2q_2l_noanc_d2_cluster_XXYYZZZ_zero",
-                "target_type": "cluster_state_1d",
-                "ansatz_gen_type": "XX_YY_ZZ_Z",
-                "ansatz_disc_type": "XX_YY_ZZ_Z",
-                "generator_initial_state_type": "zero",
-                "cost_function_type": "original_qgan",
-            },
-            {
-                "system_size": 3,
-                "generator_layers": 1,
-                "extra_ancilla": False,
-                "iterations_epoch": 3,
-                "epochs": 1,
-                "discriminator_layers": 1,
-                "label_suffix": "c4_3q_1l_noanc_d1_tfim_ZZXZ_entangled",
-                "target_type": "tfim_ground_state",
-                "tfim_h_param": 0.5,  # Example param for tfim
-                "ansatz_gen_type": "ZZ_X_Z",
-                "ansatz_disc_type": "ZZ_X_Z",
-                "generator_initial_state_type": "maximally_entangled",
-                "cost_function_type": "original_qgan",
-            },
-            # Add more configurations as needed
-            {
-                "system_size": 2,
-                "generator_layers": 1,
-                "extra_ancilla": False,
-                "iterations_epoch": 3,
-                "epochs": 1,
-                "discriminator_layers": 1,
-                "label_suffix": "c5_2q_1l_noanc_d1_cluster_ZZXZ_zero",
-                "target_type": "cluster_state_1d",
-                "ansatz_gen_type": "ZZ_X_Z",
-                "ansatz_disc_type": "ZZ_X_Z",
-                "generator_initial_state_type": "zero",
-                "cost_function_type": "original_qgan",
-            },
-        ]
-        run_test_configurations(CFG, train_log, Training, test_configurations)
-    else:
-        run_single_training(CFG, train_log, Training, load_timestamp=load_timestamp_from_config)
