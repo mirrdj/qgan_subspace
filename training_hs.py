@@ -188,7 +188,7 @@ def construct_qcircuit_ZZ_XZ(qc, size, layer):
 def main():
     # preparation for Choi state
     input_state = get_maximally_entangled_state(cf.system_size)
-    # input_state = get_maximally_entangled_state_in_subspace(cf.system_size) # 2*(size+1), B0, B1, A0, A1
+    # input_state = get_maximally_entangled_state_in_subspace(cf.system_size)  # 2*(size+1), B0, B1, A0, A1
 
     # define target gates
     # target_unitary = scio.loadmat('./exp_ideal_{}_qubit.mat'.format(cf.system_size))['exp_ideal']
@@ -198,7 +198,9 @@ def main():
 
     # define target state
     real_state = np.matmul(np.kron(target_unitary, Identity(cf.system_size)), input_state)
-    # real_state = np.matmul(np.kron(np.kron(np.kron(target_unitary, Identity(1)), Identity(cf.system_size)), Identity(1)), input_state)
+    # real_state = np.matmul(
+    #     np.kron(np.kron(np.kron(target_unitary, Identity(1)), Identity(cf.system_size)), Identity(1)), input_state
+    # )
 
     # define generator
     gen = Generator(cf.system_size)
@@ -253,7 +255,7 @@ def main():
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                     round(training_duration, 2),
                 )
-                train_log(param, "./{}qubit_log_hs.txt".format(cf.system_size))
+                train_log(param, f"{cf.base_data_path}/{cf.system_size}qubit_log_hs.txt")
 
         f = compute_fidelity(gen, input_state, real_state)
         fidelities_history = np.append(fidelities_history, fidelities)
@@ -265,9 +267,7 @@ def main():
             break
 
     # save data of fidelity and loss
-    if os.path.exists("qubit_log_hs_fidelity_loss.npy"):
-        os.remove("qubit_log_hs_fidelity_loss.npy")
-    with open("qubit_log_hs_fidelity_loss.npy", "wb") as f:
+    with open(f"{cf.base_data_path}/qubit_log_hs_fidelity_loss.npy", "wb") as f:
         np.save(f, fidelities_history)
         np.save(f, losses_history)
 
@@ -279,7 +279,7 @@ def main():
     array_angle = np.zeros(len(gen.qc.gates))
     for i in range(len(gen.qc.gates)):
         array_angle[i] = gen.qc.gates[i].angle
-    np.savetxt("theta_gen.txt", array_angle)
+    np.savetxt(f"{cf.base_data_path}/theta_gen.txt", array_angle)
 
     endtime = datetime.now()
     print("{} seconds".format((endtime - starttime).seconds))
