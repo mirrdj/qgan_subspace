@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 """
-    config_hs.py: the configuration for hamiltonian simulation task
+config_hs.py: the configuration for hamiltonian simulation task
 
 """
+
+from datetime import datetime
 
 import numpy as np
 
@@ -23,19 +25,20 @@ decay = False
 eta = initial_eta
 
 # Log
-label = 'hs'
+label = "hs"
 # fidelities = list()
 # losses = list()
 
 # System setting
-system_size = 3 #3 #4
-layer = 2 #20 #15 #10 #4 #3 #2 #4
+system_size = 3  # 3 #4
+layer = 3  # 20 #15 #10 #4 #3 #2 #4
 
 # input_state = get_maximally_entangled_state(system_size)
 # input_state = get_maximally_entangled_state_in_subspace(system_size)
 
 # file settings
-figure_path = './figure'
-model_gen_path = './saved_model/{}qubit_model-gen(hs).mdl'.format(system_size)
-model_dis_path = './saved_model/{}qubit_model-dis(hs).mdl'.format(system_size)
-
+run_timestamp: str = datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
+base_data_path: str = f"./generated_data/{run_timestamp}"
+figure_path = f"{base_data_path}/figure"
+model_gen_path = f"{base_data_path}/saved_model/{system_size}qubit_model-gen(hs).mdl"
+model_dis_path = f"{base_data_path}/saved_model/{system_size}qubit_model-dis(hs).mdl"
