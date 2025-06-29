@@ -50,7 +50,7 @@ def plt_fidelity_vs_iter(
     fidelities_np = np.asarray(fidelities)
     losses_G_np = np.asarray(losses_G)
     losses_D_np = np.asarray(losses_D)
-    losses_D_minus_G_np = np.asarray(losses_D_minus_G)
+    losses_D_minus_G_np = np.asarray(losses_D_minus_G) if losses_D_minus_G is not None else np.array([])
 
     # Left subplot: Fidelity vs. Iteration
     axs[0].plot(range(len(fidelities_np)), fidelities_np)
@@ -61,7 +61,8 @@ def plt_fidelity_vs_iter(
     # Right subplot: All three losses vs. Iteration
     axs[1].plot(range(len(losses_G_np)), losses_G_np, color="blue", label="Generator Loss (cost_G)")
     axs[1].plot(range(len(losses_D_np)), losses_D_np, color="red", label="Discriminator Loss (cost_D)")
-    axs[1].plot(range(len(losses_D_minus_G_np)), losses_D_minus_G_np, color="green", label="cost_D - cost_G")
+    if losses_D_minus_G_np.size > 0:
+        axs[1].plot(range(len(losses_D_minus_G_np)), losses_D_minus_G_np, color="green", label="cost_D - cost_G")
     axs[1].set_xlabel("Iteration")
     axs[1].set_ylabel("Loss")
     axs[1].set_title("Losses vs. Iteration")

@@ -37,24 +37,30 @@ class Config:
         #######################################################################
         # TRAINING CONFIGURATION
         #######################################################################
-        self.epochs: int = 10  # Number of epochs for training
-        self.iterations_epoch: int = 200  # Number of iterations per epoch
+        self.epochs: int = 3  # Number of epochs for training
+        self.iterations_epoch: int = 100  # Number of iterations per epoch
         self.learning_rate: float = 0.01  # Unified learning rate for optimizers
-        # TODO: self.steps_gen: int = 1  # Number of steps in a row to update generator
+        self.max_fidelity: float = 0.99  # Target fidelity to stop training
+        # TODO: self.steps_gen: int = 1  # Number of steps in a row to update generator (#TODO: Discriminator has to be updated more frequently: 1 to 5)
         # TODO: self.steps_dis: int = 1  # Number of steps in a row to update discriminator
 
         #######################################################################
         # SYSTEM CONFIGURATION
         #######################################################################
-        self.num_qubits: int = 10  # Number of main qubits to study
+        self.num_qubits: int = 3  # Number of main qubits for the system Hamiltonian
 
-        # Initial state for the generator and target: |0...0> state or Choi (maximal entanglement, choi)
-        self.initial_state: Literal["zero", "choi"] = "choi"  # choi will double the number of qubits to compute
-        # TODO: Check this is implemented correctly in the generator, target and discriminator
+        # Initial state mode:
+        # "zero": System starts in |0...0> state.
+        # "choi": Uses Choi-Jamiolkowski isomorphism. Doubles num_qubits for the state representation (N_system for each part of Bell pair).
+        self.initial_state: Literal["zero", "choi"] = "zero"
+        # TODO: Make choi work, since currently doesn;t work well.
 
-        # If adding a helper ancilla  qubit:
-        self.extra_ancilla: bool = False  # If True, adds an ancilla to the generator and target (# TODO: "pass" mode)
-        # TODO: self.ancilla_mode: Literal["pass", "project", "trace_out"] = "pass"  # What to do with the ancilla
+        # Ancilla Configuration:
+        self.extra_ancilla: bool = False  # If True, adds an ancilla qubit.
+        # TODO: We need to make ancilla same or more connected than normal qubits (e.g., ancilla_connectivity = "all" or "linear")
+        self.ancilla_mode: Literal["pass", "project", "trace_out"] = (
+            "pass"  # How the ancilla is handled. TODO: Implement "project" and "trace_out" modes.
+        )
 
         # Ansatz Configuration: XX_YY_ZZ_Z, ZZ_X_Z or hardware efficient ansatz + Num of layers
         self.ansatz_gen: Literal["XX_YY_ZZ_Z", "ZZ_X_Z", "hardware_eff"] = "XX_YY_ZZ_Z"  # TODO: Implement HW efficient
@@ -105,10 +111,12 @@ test_configurations = [
         "iterations_epoch": 3,
         "disc_layers": 1,
         "gen_layers": 1,
-        "label_suffix": "c1_2q_1l_noanc_d1_choi_XXYYZZZ_zero",
+        "label_suffix": "c1_2q_1l_noanc_d1_zero_XXYYZZZ",  # Corrected label
         "ansatz_gen": "XX_YY_ZZ_Z",
         "ansatz_disc": "XX_YY_ZZ_Z",
-        "initial_state": "zero",
+        "initial_state": "zero",  # Test with zero
+        "ancilla_mode": "pass",
+        "target_hamiltonian": "cluster_h",
     },
     {
         "num_qubits": 2,
@@ -120,7 +128,9 @@ test_configurations = [
         "label_suffix": "c2_2q_1l_anc_d1_ZZXZ_choi",
         "ansatz_gen": "ZZ_X_Z",
         "ansatz_disc": "ZZ_X_Z",
-        "initial_state": "choi",
+        "initial_state": "choi",  # Test with choi
+        "ancilla_mode": "pass",
+        "target_hamiltonian": "cluster_h",
     },
     {
         "num_qubits": 2,
@@ -133,6 +143,8 @@ test_configurations = [
         "ansatz_gen": "XX_YY_ZZ_Z",
         "ansatz_disc": "XX_YY_ZZ_Z",
         "initial_state": "zero",
+        "ancilla_mode": "pass",  # Added ancilla_mode
+        "target_hamiltonian": "cluster_h",  # Added target_hamiltonian for consistency, assuming it might be needed
     },
     {
         "num_qubits": 3,
@@ -145,6 +157,8 @@ test_configurations = [
         "ansatz_gen": "ZZ_X_Z",
         "ansatz_disc": "ZZ_X_Z",
         "initial_state": "choi",
+        "ancilla_mode": "pass",  # Added ancilla_mode
+        "target_hamiltonian": "cluster_h",  # Added target_hamiltonian
     },
     # Add more configurations as needed
     {
@@ -158,5 +172,7 @@ test_configurations = [
         "ansatz_gen": "ZZ_X_Z",
         "ansatz_disc": "ZZ_X_Z",
         "initial_state": "zero",
+        "ancilla_mode": "pass",  # Added ancilla_mode
+        "target_hamiltonian": "cluster_h",  # Added target_hamiltonian
     },
 ]

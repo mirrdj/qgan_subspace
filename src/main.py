@@ -29,8 +29,10 @@ def main():
     # SINGLE RUN mode
     ##############################################################
     else:
+        # LOAD PREVIOUS MODEL:
         if CFG.load_timestamp:
             run_message = f"\nAttempting to load models from timestamp: {CFG.load_timestamp} and continue training...\n"
+        # NEW RUN:
         else:
             run_message = "\nRunning with default configuration from config.py (new training)...\n"
         print_and_train_log(run_message, CFG.log_path)

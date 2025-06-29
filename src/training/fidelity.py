@@ -42,7 +42,7 @@ def compute_fidelity(
     # and applies the generator U_G.
     # It expects params_gen to be set within the generator object.
     generated_state_nm_pnp = gen.get_generated_state_vector(
-        params_gen=gen.params_gen, input_state_subspace_M_eff_qubits=input_to_g_m_pnp
+        params_gen=gen.params_gen, input_subspace_state_vector=input_to_g_m_pnp
     )
 
     # Fidelity: |<target_real_state|generated_state>|^2

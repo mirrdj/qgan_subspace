@@ -29,7 +29,7 @@ class Discriminator:
     def __init__(
         self, num_qubits: int, num_disc_layers: int, ansatz_type: str, learning_rate: float
     ):  # Added learning_rate
-        self.num_qubits = num_qubits  # N_eff
+        self.num_qubits = num_qubits
         self.num_disc_layers = num_disc_layers
         self.dev_disc = qml.device("default.qubit", wires=self.num_qubits)
 
@@ -43,8 +43,6 @@ class Discriminator:
         self._discriminator_circuit_qnode = self._create_qnode()
 
         self.optimizer_disc = MomentumOptimizer(learning_rate=learning_rate)  # Pass learning_rate to optimizer
-
-        self.grad_params_disc_fn = qml.grad(self.discriminator_cost_function, argnum=0)
 
     def _discriminator_circuit(self, state_vector_to_evaluate, disc_circuit_params):
         """
@@ -62,47 +60,24 @@ class Discriminator:
         """Creates and returns the QNode for the discriminator circuit."""
         return qml.QNode(self._discriminator_circuit, self.dev_disc, interface="autograd")
 
-    def discriminator_cost_function(
-        self,
-        current_params_disc,
-        fake_state_vector,
-        real_state_vector,
-    ):
-        """
-        Computes the cost for the discriminator.
-        Cost to minimize: E_fake - E_real.
-        """
-        output_fake = self._discriminator_circuit_qnode(fake_state_vector, current_params_disc)
-        output_real = self._discriminator_circuit_qnode(real_state_vector, current_params_disc)
-
-        cost = output_fake - output_real
-        return cost
-
-    def _calculate_gradients(self, current_params_disc, fake_state_vector, real_state_vector):
-        """Calculates gradients for params_disc."""
-        grad_val = self.grad_params_disc_fn(current_params_disc, fake_state_vector, real_state_vector)
-        return grad_val
-
-    def update_dis(self, generator, real_target_state, input_state_for_generator):
-        """
-        Performs one update step for the discriminator's parameters.
-        """
-        fake_state_vector = generator.get_generated_state_vector(
-            params_gen=generator.params_gen, input_state_subspace_M_eff_qubits=input_state_for_generator
-        )
-
-        fake_state_pnp = pnp.asarray(fake_state_vector, dtype=complex)
-        real_target_pnp = pnp.asarray(real_target_state, dtype=complex)
-
-        grad_params_val = self._calculate_gradients(self.params_disc, fake_state_pnp, real_target_pnp)
-
+    def update_params(self, gradients):
+        """Performs one update step for the discriminator's parameters using provided gradients."""
         current_params_disc_np = (
             self.params_disc.numpy() if hasattr(self.params_disc, "numpy") else np.array(self.params_disc)
         )
-        grad_params_val_np = grad_params_val.numpy() if hasattr(grad_params_val, "numpy") else np.array(grad_params_val)
+        # Ensure gradients are also flat numpy arrays
+        gradients_flat_np = (
+            gradients.flatten().numpy() if hasattr(gradients, "numpy") else np.array(gradients.flatten())
+        )
+
+        if current_params_disc_np.shape != gradients_flat_np.shape:
+            raise ValueError(
+                f"Shape mismatch between flattened params ({current_params_disc_np.shape}) "
+                f"and gradients ({gradients_flat_np.shape}) in Discriminator.update_params"
+            )
 
         new_params_disc_flat = self.optimizer_disc.compute_grad(
-            current_params_disc_np.flatten(), grad_params_val_np.flatten(), "min"
+            current_params_disc_np.flatten(), gradients_flat_np.flatten(), "min"
         )
 
         self.params_disc = pnp.array(
