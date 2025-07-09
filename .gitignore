@@ -7,3 +7,5 @@ generated_data/
 *cache*
 .DS_Store
 tests/qgan/data/
+.idea/
+doc/
