@@ -29,19 +29,19 @@ import matplotlib.pyplot as plt
 ########################################################################
 # MAIN PLOTTING FUNCTION
 ########################################################################
-def generate_all_plots(base_path, log_path, n_runs, max_fidelity, common_initial_experiment):
+def generate_all_plots(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus):
     # Plot for each run
     for run_idx in range(1, n_runs + 1):
-        plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_initial_experiment)
+        plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_initial_plateaus)
 
     # Plot all runs together (overwrites each time)
-    plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_initial_experiment)
+    plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus)
 
     # Plot average best fidelity per run
-    plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_experiment)
+    plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus)
 
     # Plot percent of runs above max_fidelity per run
-    plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_experiment)
+    plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus)
 
 
 ########################################################################
@@ -69,12 +69,12 @@ def plt_fidelity_vs_iter(fidelities, losses, config, indx=0):
 #########################################################################
 # PLOT INDIVIDUAL RUNS HISTOGRAMS
 #########################################################################
-def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_initial_experiment):
+def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_initial_plateaus):
     run_colors = plt.cm.tab10.colors  # Consistent palette for control and runs
     control_fids = (
-        collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+") if common_initial_experiment else []
+        collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+") if common_initial_plateaus else []
     )
-    changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_experiment, run_idx)
+    changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
     # Split last bin at max_fidelity
     bins = [*list(np.linspace(0, max_fidelity, 20)), max_fidelity, 1.0]
     control_hist, _ = np.histogram(control_fids, bins=bins) if control_fids else (np.zeros(len(bins) - 1), bins)
@@ -83,7 +83,7 @@ def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_in
     plt.figure(figsize=(8, 6))
     width = (bins[1] - bins[0]) * 0.4
     bars = []
-    if common_initial_experiment and np.any(control_hist):
+    if common_initial_plateaus and np.any(control_hist):
         bars.append(
             plt.bar(
                 bin_centers - width / 2,
@@ -112,7 +112,7 @@ def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_in
     title = "Recurrence vs Maximum Fidelity"
     if run_idx:
         title += f" (run {run_idx})"
-    elif not common_initial_experiment:
+    elif not common_initial_plateaus:
         title += " (Experiment Mode)"
     plt.title(title)
     if bars:
@@ -130,10 +130,10 @@ def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_in
 ###########################################################################
 # PLOT COMPARISON OF ALL HISTOGRAMS TOGETHER
 ###########################################################################
-def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_initial_experiment):
+def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus):
     run_colors = plt.cm.tab10.colors
     control_fids = (
-        collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+") if common_initial_experiment else []
+        collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+") if common_initial_plateaus else []
     )
     # Split last bin at max_fidelity
     bins = [*list(np.linspace(0, max_fidelity, 20)), max_fidelity, 1.0]
@@ -143,17 +143,17 @@ def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_i
     all_labels = []
     all_colors = []
     # Collect control as first 'run' if present
-    if common_initial_experiment and len(control_fids) > 0:
+    if common_initial_plateaus and len(control_fids) > 0:
         control_hist, _ = np.histogram(control_fids, bins=bins)
         all_hists.append(control_hist)
         all_labels.append("Control (no change)")
         all_colors.append(run_colors[0])
     # Collect all runs
     for run_idx in range(1, n_runs + 1):
-        if common_initial_experiment:
+        if common_initial_plateaus:
             changed_fids = collect_latest_changed_fidelities_nested_run(base_path, run_idx)
         else:
-            changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_experiment, run_idx)
+            changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
         changed_hist, _ = np.histogram(changed_fids, bins=bins)
         all_hists.append(changed_hist)
         all_labels.append(f"Run {run_idx}")
@@ -173,7 +173,7 @@ def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_i
     plt.xlabel("Maximum Fidelity Reached")
     plt.ylabel("Recurrence (Count)")
     title = "Comparison: Recurrence vs Maximum Fidelity (All Runs)"
-    if not common_initial_experiment:
+    if not common_initial_plateaus:
         title += " (Experiment Mode)"
     plt.title(title)
     if n_groups > 0:
@@ -189,15 +189,15 @@ def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_i
 ##########################################################################
 # PLOT AVERAGE BEST FIDELITY PER RUN
 ##########################################################################
-def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_experiment):
+def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus):
     import matplotlib.ticker as mticker
 
     avgs = []
     for run_idx in range(1, n_runs + 1):
-        if common_initial_experiment:
+        if common_initial_plateaus:
             changed_fids = collect_latest_changed_fidelities_nested_run(base_path, run_idx)
         else:
-            changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_experiment, run_idx)
+            changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
         if changed_fids:
             avgs.append(np.nanmean(changed_fids))
         else:
@@ -209,7 +209,7 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
     for xi, yi in zip(x, avgs):
         plt.text(xi, yi + 0.01, f"{yi:.3f}", ha="center", va="bottom", fontsize=9)
     # Add control data as a distinct point if in initial mode
-    if common_initial_experiment:
+    if common_initial_plateaus:
         control_fids = collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+")
         if control_fids:
             control_avg = np.nanmean(control_fids)
@@ -221,7 +221,7 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
     plt.title("Average Best Fidelity per Run")
     plt.ylim(0, 1.05)
     plt.gca().xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    if common_initial_experiment:
+    if common_initial_plateaus:
         plt.legend()
     save_path = os.path.join(base_path, "avg_best_fidelity_per_run.png")
     plt.tight_layout()
@@ -233,12 +233,12 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
 ##########################################################################
 # PLOT SUCCESS PERCENTAGE PER RUN (> threshold fidelity)
 ##########################################################################
-def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_experiment):
+def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus):
     import matplotlib.ticker as mticker
 
     percents = []
     for run_idx in range(1, n_runs + 1):
-        changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_experiment, run_idx)
+        changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
         perc = 100 * np.sum(np.array(changed_fids) >= max_fidelity) / len(changed_fids) if changed_fids else 0
         percents.append(perc)
     plt.figure(figsize=(8, 5))
@@ -248,7 +248,7 @@ def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, comm
     for xi, yi in zip(x, percents):
         plt.text(xi, yi + 1, f"{yi:.1f}%", ha="center", va="bottom", fontsize=9)
     # Add control data as a distinct point if in initial mode
-    if common_initial_experiment:
+    if common_initial_plateaus:
         control_fids = collect_max_fidelities_nested(base_path, r"repeated_controls", r"\d+")
         if control_fids:
             control_success = 100 * np.sum(np.array(control_fids) >= max_fidelity) / len(control_fids)
@@ -259,7 +259,7 @@ def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, comm
     plt.title("Success Rate per Run")
     plt.ylim(0, 105)
     plt.gca().xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    if common_initial_experiment:
+    if common_initial_plateaus:
         plt.legend()
     save_path = os.path.join(base_path, "success_percent_per_run.png")
     plt.savefig(save_path)
@@ -303,20 +303,20 @@ def collect_max_fidelities_nested(base_path, outer_pattern, inner_pattern):
     return max_fids
 
 
-def collect_latest_changed_fidelities_nested(base_path, common_initial_experiment, run_idx=None):
+def collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx=None):
     """
     Collect max fidelities for changed runs, supporting both folder structures.
-    common_initial_experiment: boolean, if True, uses the initial experiment structure.
+    common_initial_plateaus: boolean, if True, uses the initial plateaus structure.
     If run_idx is not None, only collect for that run.
     """
     run_dirs = {}
-    if common_initial_experiment:
+    if common_initial_plateaus:
         if run_idx is not None:
             # Only two groups: exp_j and x_num
-            pattern = rf"initial_exp_(\d+)/repeated_changed_run{run_idx}/(\d+)/fidelities$"
+            pattern = rf"initial_plateau_(\d+)/repeated_changed_run{run_idx}/(\d+)/fidelities$"
         else:
             # Three groups: exp_j, run_y, x_num
-            pattern = r"initial_exp_(\d+)/repeated_changed_run(\d+)/(\d+)/fidelities$"
+            pattern = r"initial_plateau_(\d+)/repeated_changed_run(\d+)/(\d+)/fidelities$"
     else:
         if run_idx is not None:
             pattern = rf"experiment{run_idx}/(\d+)/fidelities$"
@@ -325,7 +325,7 @@ def collect_latest_changed_fidelities_nested(base_path, common_initial_experimen
     for root, dirs, files in os.walk(base_path):
         m = re.search(pattern, root)
         if m and "log_fidelity_loss.txt" in files:
-            if common_initial_experiment:
+            if common_initial_plateaus:
                 if run_idx is not None:
                     exp_j = int(m[1])
                     run_y = run_idx
@@ -357,7 +357,7 @@ def collect_latest_changed_fidelities_nested_run(base_path, run_idx):
     run_dirs = {}
     for root, dirs, files in os.walk(base_path):
         m = re.search(
-            r"initial_exp_(\d+)[/\\]repeated_changed_run" + str(run_idx) + r"[/\\](\d+)[/\\]fidelities$", root
+            r"initial_plateau_(\d+)[/\\]repeated_changed_run" + str(run_idx) + r"[/\\](\d+)[/\\]fidelities$", root
         )
         if m and "log_fidelity_loss.txt" in files:
             exp_j = int(m[1])

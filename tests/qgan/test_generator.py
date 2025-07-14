@@ -41,12 +41,12 @@ class TestGenerator():
         assert np.allclose(partial_trace, gen_mat_rep)
 
     def test_update_gen(self):
-        total_target_state = np.matrix(np.ones((2**(CFG.system_size * 2 + (1 if CFG.extra_ancilla else 0)), 1)))
+        final_target_state = np.matrix(np.ones((2**(CFG.system_size * 2 + (1 if CFG.extra_ancilla and CFG.ancilla_mode == "pass" else 0)), 1)))
         gen = Generator(np.matrix(np.ones((2**(CFG.system_size * 2 + (1 if CFG.extra_ancilla else 0)), 1))))
         dis = Discriminator()
         
         old_angles = [g.angle for g in gen.qc.gates].copy()
-        gen.update_gen(dis, total_target_state)
+        gen.update_gen(dis, final_target_state)
         
         # Check that it updates the theta parameters
         new_angles = [g.angle for g in gen.qc.gates].copy()

@@ -16,7 +16,6 @@
 import numpy as np
 
 from config import CFG
-from qgan.ancilla import get_final_gen_state_for_discriminator, get_final_target_state_for_discriminator
 
 np.random.seed()
 
@@ -37,29 +36,13 @@ def braket(*args) -> float:
     return np.matmul(bra.getH(), ket)
 
 
-def get_final_comp_states_for_dis(total_target_state: np.ndarray, total_gen_state: np.ndarray) -> tuple:
-    """Get the final target and gen states for comparison in the discriminator.
-
-    Args:
-        total_target_state (np.ndarray): the target state, which is the target state.
-        total_gen_state (np.ndarray): the gen state, which is the total gen state.
-
-
-    Returns:
-        tuple[np.ndarray]: the final gen state and target state for the discriminator.
-    """
-    final_gen_state: np.ndarray = get_final_gen_state_for_discriminator(total_gen_state)
-    final_target_state: np.ndarray = get_final_target_state_for_discriminator(total_target_state)
-    return final_target_state, final_gen_state
-
-
 def compute_cost(dis, final_target_state: np.ndarray, final_gen_state: np.ndarray) -> float:
     """Calculate the cost function. Which is basically equivalent to the Wasserstein distance.
 
     Args:
         dis (Discriminator): the discriminator.
-        total_target_state (np.ndarray): the target state.
-        total_gen_state (np.ndarray): the gen state.
+        final_target_state (np.ndarray): the target state to input into the Discriminator.
+        final_gen_state (np.ndarray): the gen state to input into the Discriminator.
 
     Returns:
         float: the cost function.

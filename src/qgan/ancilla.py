@@ -25,7 +25,7 @@ def get_max_entangled_state_with_ancilla_if_needed(size: int) -> np.ndarray:
         size (int): the size of the system.
 
     Returns:
-        np.ndarray: the maximally entangled state.
+        tuple[np.ndarray]: the maximally entangled states, plus ancilla if needed for generation and target.
     """
     # Generate the maximally entangled state for the system size
     state = np.zeros(2 ** (2 * size), dtype=complex)
@@ -35,9 +35,13 @@ def get_max_entangled_state_with_ancilla_if_needed(size: int) -> np.ndarray:
     state /= np.sqrt(dim_register)
 
     # Add ancilla qubit at the end, if needed
-    if CFG.extra_ancilla:
-        state = np.kron(state, np.array([1, 0], dtype=complex))  # Ancilla in |0>
-    return np.asmatrix(state).T
+    initial_state_with_ancilla = np.kron(state, np.array([1, 0], dtype=complex))
+
+    # Different conditions for gen and target:
+    initial_state_for_gen = initial_state_with_ancilla if CFG.extra_ancilla else state
+    initial_state_for_target = initial_state_with_ancilla if CFG.extra_ancilla and CFG.ancilla_mode == "pass" else state
+
+    return np.asmatrix(initial_state_for_gen).T, np.asmatrix(initial_state_for_target).T
 
 
 def project_ancilla_zero(state: np.ndarray, renormalize: bool = True) -> tuple[np.ndarray, float]:
@@ -118,28 +122,5 @@ def get_final_gen_state_for_discriminator(total_output_state: np.ndarray) -> np.
             return projected
         if CFG.ancilla_mode == "trace":
             return trace_out_ancilla(total_final_state)
-        raise ValueError(f"Unknown ancilla_mode: {CFG.ancilla_mode}")
-    return total_final_state
-
-
-def get_final_target_state_for_discriminator(total_output_state: np.ndarray) -> np.ndarray:
-    """Modifies the target state to be passed to the discriminator, according to ancilla_mode.
-
-    Args:
-        total_output_state (np.ndarray): The output state from the target.
-
-    Returns:
-        np.ndarray: The final state to be passed to the discriminator.
-    """
-    total_final_state = total_output_state
-    if CFG.extra_ancilla:
-        if CFG.ancilla_mode == "pass":
-            # Pass ancilla to discriminator (current behavior)
-            return total_final_state
-        if CFG.ancilla_mode in ["project", "trace"]:
-            state, _ = project_ancilla_zero(total_final_state, renormalize=False)
-            return state
-            # Return only the system part (project ancilla to zero)
-            # No need to renorm or trace, as Ancilla is not used in Target, and total state should be T x |0>.
         raise ValueError(f"Unknown ancilla_mode: {CFG.ancilla_mode}")
     return total_final_state

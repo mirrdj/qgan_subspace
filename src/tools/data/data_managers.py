@@ -64,3 +64,21 @@ def save_gen_final_params(gen, file_path):
     for i, gate_i in enumerate(gen.qc.gates):
         array_angle[i] = gate_i.angle
     np.savetxt(file_path, array_angle)
+
+
+def get_last_experiment_idx(base_path, common_initial_plateaus):
+    """Return the highest experiment index in experimentX or initial_plateau_1/repeated_changed_runX folders under base_path."""
+    base_path = f"{base_path}/initial_plateau_1" if common_initial_plateaus else base_path
+    start_with = "repeated_changed_run" if common_initial_plateaus else "experiment"
+    experiment_dirs = [
+        d for d in os.listdir(base_path) if d.startswith(start_with) and os.path.isdir(os.path.join(base_path, d))
+    ]
+    last_idx = 0
+    for d in experiment_dirs:
+        try:
+            idx = int(d.replace(start_with, ""))
+            if idx > last_idx:
+                last_idx = idx
+        except Exception:
+            continue
+    return last_idx

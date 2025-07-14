@@ -6,11 +6,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 import pytest
 import numpy as np
-from qgan.cost_functions import compute_cost, compute_fidelity, get_final_comp_states_for_dis
+from qgan.cost_functions import compute_cost, compute_fidelity
 from qgan.generator import Generator
 from qgan.discriminator import Discriminator
-from qgan.ancilla import get_max_entangled_state_with_ancilla_if_needed
-from qgan.target import get_total_target_state
+from qgan.ancilla import get_final_gen_state_for_discriminator, get_max_entangled_state_with_ancilla_if_needed
+from qgan.target import get_final_target_state
 from config import CFG
 
 @pytest.fixture
@@ -24,8 +24,8 @@ def final_states_for_discriminator():
         for ancilla_mode in ["pass", "project", "trace"]:
             CFG.ancilla_mode = ancilla_mode
             # Compute input and target states:
-            total_input_state: np.matrix = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
-            total_target_state: np.matrix = get_total_target_state(total_input_state)
+            total_input_state, final_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
+            final_target_state: np.matrix = get_final_target_state(final_input_state)
             
             # Also try different ansatz and number of layers for gen:
             for ansatz in ["XX_YY_ZZ_Z", "ZZ_X_Z"]:
@@ -35,7 +35,7 @@ def final_states_for_discriminator():
 
                     gen = Generator(total_input_state)
                     total_gen_state: np.matrix = gen.get_total_gen_state()
-                    final_target_state, final_gen_state = get_final_comp_states_for_dis(total_target_state, total_gen_state)
+                    final_gen_state = get_final_gen_state_for_discriminator(total_gen_state)
                     final_target_and_gen_states.append((ancilla, ancilla_mode, final_target_state, final_gen_state))
     return final_target_and_gen_states
 
@@ -50,8 +50,8 @@ def gen_and_total_states_for_discriminator():
         for ancilla_mode in ["pass", "project", "trace"]:
             CFG.ancilla_mode = ancilla_mode
             # Compute input and target states:
-            total_input_state: np.matrix = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
-            total_target_state: np.matrix = get_total_target_state(total_input_state)
+            total_input_state, final_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
+            final_target_state: np.matrix = get_final_target_state(final_input_state)
             
             # Also try different ansatz and number of layers for gen:
             for ansatz in ["XX_YY_ZZ_Z", "ZZ_X_Z"]:
@@ -60,7 +60,7 @@ def gen_and_total_states_for_discriminator():
                     CFG.gen_layers = num_layers
                     gen = Generator(total_input_state)
                     total_gen_state: np.matrix = gen.get_total_gen_state()
-                    gen_and_total_states_for_discriminator.append((ancilla, ancilla_mode, gen, total_target_state, total_gen_state))
+                    gen_and_total_states_for_discriminator.append((ancilla, ancilla_mode, gen, final_target_state, total_gen_state))
             
     return gen_and_total_states_for_discriminator
         
@@ -101,10 +101,10 @@ class TestCostFunctions():
     def test_compute_costdist_decreases_with_gen_gradient(self, gen_and_total_states_for_discriminator):
         CFG.system_size = 2  # Set a default system size for testing
         for gen_and_total_states in gen_and_total_states_for_discriminator: # Run multiple times to ensure stability (random in Gen)
-            ancilla, ancilla_mode, gen, total_target_state, total_gen_state = gen_and_total_states
+            ancilla, ancilla_mode, gen, final_target_state, total_gen_state = gen_and_total_states
             CFG.extra_ancilla = ancilla
             CFG.ancilla_mode = ancilla_mode
-            final_target_state, final_gen_state = get_final_comp_states_for_dis(total_target_state, total_gen_state)
+            final_gen_state = get_final_gen_state_for_discriminator(total_gen_state)
             
             # We want to build a good enough discriminator to test the cost function:
             dis = Discriminator()
@@ -114,10 +114,10 @@ class TestCostFunctions():
             # Gradient of Generator should decrease the cost:
             dist_1 = compute_cost(dis, final_target_state, final_gen_state)
             for _ in range(30):  # Update generator multiple times
-                gen.update_gen(dis, total_target_state)
+                gen.update_gen(dis, final_target_state)
             
             total_gen_state = gen.get_total_gen_state()
-            final_target_state, final_gen_state = get_final_comp_states_for_dis(total_target_state, total_gen_state)
+            final_gen_state = get_final_gen_state_for_discriminator(total_gen_state)
             dist_2 = compute_cost(dis, final_target_state, final_gen_state)
             
             assert isinstance(dist_1, float) and isinstance(dist_2, float)

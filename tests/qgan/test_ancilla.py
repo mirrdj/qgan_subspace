@@ -7,13 +7,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from config import CFG
 from qgan.ancilla import (
     get_final_gen_state_for_discriminator,
-    get_final_target_state_for_discriminator,
+    get_max_entangled_state_with_ancilla_if_needed,
     project_ancilla_zero,
     trace_out_ancilla,
-    get_max_entangled_state_with_ancilla_if_needed,
 )
 import numpy as np
-from qgan.target import get_target_unitary, get_total_target_state
+from qgan.target import get_target_unitary, get_final_target_state
 from qgan.generator import Generator
 from qgan.discriminator import Discriminator
 from qgan.cost_functions import compute_fidelity
@@ -24,10 +23,14 @@ class TestAncilla():
     def test_get_maximally_entangled_state(self):
         for ancilla in [False, True]:
             CFG.extra_ancilla = ancilla
-            state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
-            assert state is not None
-            assert len(state.shape) == 2
-            assert state.shape[0] == 2 ** (CFG.system_size * 2 + (1 if CFG.extra_ancilla else 0))
+            for ancilla_mode in ["pass", "project"]:
+                CFG.ancilla_mode = ancilla_mode
+                total_state, final_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
+                for state in [total_state, final_state]:
+                    assert state is not None
+                    assert len(state.shape) == 2
+                assert total_state.shape[0] == 2 ** (CFG.system_size * 2 + (1 if CFG.extra_ancilla else 0))
+                assert final_state.shape[0] == 2 ** (CFG.system_size * 2 + (1 if CFG.extra_ancilla and CFG.ancilla_mode == "pass" else 0))
         
     def test_final_gen_state_project(self):
         state = np.ones((2 ** (CFG.system_size * 2 + 1), 1))
@@ -62,30 +65,33 @@ class TestAncilla():
         # Don't know how to compare state easily
 
     def test_final_target_state_project(self):
-        state = np.ones((2 ** (CFG.system_size * 2 + 1), 1))
         CFG.extra_ancilla = True
         CFG.ancilla_mode = "project"
-        result = get_final_target_state_for_discriminator(state)
+        CFG.target_hamiltonian = "cluster_h"
+        state = np.ones((2 ** (CFG.system_size * 2), 1)) # No +1 since its in project mode
+        result = get_final_target_state(state)
         assert result is not None
         assert result.shape[0] == 2 ** (CFG.system_size * 2)  # size halved
         assert result.shape[1] == 1
-        assert (result == state[::2]).all() # Keep even indices (no need to renormalize)
+        assert (result != state).any() # Changed state
 
     def test_final_target_state_pass(self):
-        state = np.ones((2 ** (CFG.system_size * 2 + 1), 1))
         CFG.extra_ancilla = True
         CFG.ancilla_mode = "pass"
-        result = get_final_target_state_for_discriminator(state)
+        CFG.target_hamiltonian = "cluster_h"
+        state = np.ones((2 ** (CFG.system_size * 2 + 1), 1)) # +1 since its in pass mode
+        result = get_final_target_state(state)
         assert result is not None
         assert result.shape[0] == 2 ** (CFG.system_size * 2 + 1)  # size unchanged
         assert result.shape[1] == 1
-        assert (result == state).all() # Unchanged state
+        assert (result != state).any() # Changed state
 
     def test_final_target_state_trace(self):
-        state = np.ones((2 ** (CFG.system_size * 2 + 1), 1))
         CFG.extra_ancilla = True
         CFG.ancilla_mode = "trace"
-        result = get_final_target_state_for_discriminator(state)
+        CFG.target_hamiltonian = "cluster_h"
+        state = np.ones((2 ** (CFG.system_size * 2), 1)) # No +1 since its in trace mode
+        result = get_final_target_state(state)
         assert result is not None
         assert result.shape[0] == 2 ** (CFG.system_size * 2)  # size halved
         assert result.shape[1] == 1
@@ -147,8 +153,8 @@ class TestAncilla():
             ###################################################
             # Get, input, target and gen states:
             ###################################################
-            total_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
-            total_target_state = get_total_target_state(total_input_state)
+            total_input_state, final_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
+            final_target_state = get_final_target_state(final_input_state)
             gen = Generator(total_input_state)
             
             # Set the generator to the Identity (as target), but with some arbitrary rotations to check ancilla logic:
@@ -180,12 +186,10 @@ class TestAncilla():
                     CFG.ancilla_mode = mode
                     dis = Discriminator() # Since the states are equal, doesn't matter which alpha/beta cost should same.
                     gen_out = get_final_gen_state_for_discriminator(total_gen_state)
-                    target_out = get_final_target_state_for_discriminator(total_target_state)
                     
                     if mode == 'pass':
                             assert if_exactly_equal_with_allclose_and_fidelity(gen_out, total_gen_state)
-                            # Can't say anything between gen_out & target_out without projecting, diff relative phases to the ancilla
-                            assert if_exactly_equal_with_allclose_and_fidelity(target_out, total_target_state)
+                            #
                             
                     # IF GENERATOR WORKS CORRECTLY WITH ANCILLA LOGIC, in the last subspace/qubit, THESE SHOULD WORK:
                     elif change_gates_in_X_qubit_of_gen in ["none", "ancilla"]:                    
@@ -197,9 +201,9 @@ class TestAncilla():
                             assert if_exactly_equal_with_allclose_and_fidelity(gen_out, expected_state_with_no_phase)
                         
                         # For both 'project' and 'trace', target will have only exp(-1j) phase exactly:
-                        assert if_exactly_equal_with_allclose_and_fidelity(target_out, expected_state_with_phase)
+                        assert if_exactly_equal_with_allclose_and_fidelity(final_target_state, expected_state_with_phase)
                         # Also up to a phase gen and target will match!
-                        assert if_equal_up_to_global_phase_with_fidelity(gen_out, target_out)
+                        assert if_equal_up_to_global_phase_with_fidelity(gen_out, final_target_state)
                     
                     # AND THESE SHOULD NOT, SINCE I'M GIVING RANDOM ROTATIONS TO THE ACTUAL GENERATOR GATES (no ancilla)
                     elif change_gates_in_X_qubit_of_gen in ["first", "second"]:
@@ -211,10 +215,10 @@ class TestAncilla():
                             assert not if_exactly_equal_with_allclose_and_fidelity(gen_out, expected_state_with_no_phase)
                             
                         # For both 'project' and 'trace', target will have only exp(-1j) phase exactly:
-                        assert if_exactly_equal_with_allclose_and_fidelity(target_out, expected_state_with_phase)
+                        assert if_exactly_equal_with_allclose_and_fidelity(final_target_state, expected_state_with_phase)
                         # Also up to a phase gen and target will match!
-                        assert not if_equal_up_to_global_phase_with_fidelity(gen_out, target_out)
-                
+                        assert not if_equal_up_to_global_phase_with_fidelity(gen_out, final_target_state)
+               
     def test_ancilla_logic_integration_with_actual_Hamiltonians_no_gen(self):
         # Check that ancilla logic matches for all modes
         CFG.custom_hamiltonian_terms = ["Z", "ZZ", "ZZZ"]
@@ -233,13 +237,13 @@ class TestAncilla():
         ###################################################
         # Get, input and target states:
         ###################################################
-        total_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
+        _, final_input_state = get_max_entangled_state_with_ancilla_if_needed(CFG.system_size)
         # Random total_gen_state
         
         for ham in ["cluster_h", "custom_h"]:
             CFG.target_hamiltonian = ham
         
-            total_target_state = get_total_target_state(total_input_state)
+            final_target_state = get_final_target_state(final_input_state)
             
             # Expected Target state without ancilla:
             target_unitary = get_target_unitary(CFG.target_hamiltonian, CFG.system_size)
@@ -251,18 +255,15 @@ class TestAncilla():
             ###################################################
             for mode in ['pass', 'project', 'trace']:
                 CFG.ancilla_mode = mode
-                target_out = get_final_target_state_for_discriminator(total_target_state)
-                # For 'pass', both should be the same as input
-                if mode == 'pass':
-                    assert if_exactly_equal_with_allclose_and_fidelity(target_out, total_target_state)
-                elif mode == 'project':
+                
+                if mode == 'project':
                     # For 'project', target_out should be the expected state, with the same phase
-                    assert if_exactly_equal_with_allclose_and_fidelity(target_out, expected_state)
+                    assert if_exactly_equal_with_allclose_and_fidelity(final_target_state, expected_state)
                 elif mode == 'trace':
                     # For, target_out should be the expected state but with no phase (sampling)
-                    assert if_exactly_equal_with_allclose_and_fidelity(target_out, expected_state)
+                    assert if_exactly_equal_with_allclose_and_fidelity(final_target_state, expected_state)
                 # Check normalization
-                assert np.isclose(np.linalg.norm(target_out), 1.0), "Target output should be normalized, without need to explicitly doing so (T x|0>)"
+                assert np.isclose(np.linalg.norm(final_target_state), 1.0), "Target output should be normalized, without need to explicitly doing so (T x|0>)"
 
 def if_exactly_equal_with_allclose_and_fidelity(state1, state2):
     """Check if two states are equal using np.allclose and fidelity."""

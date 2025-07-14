@@ -30,34 +30,34 @@ class Config:
         # ---------------------
         # RUNS CONFIGURATION
         # ---------------------
-        #       If activated, you will first run `N_initial_exp` initial experiments. And then for each of
-        #       those you would continue them `N_reps_each_init_exp` times, adding the specified changes
-        #       and not adding the changes (controls), for then comparing the effects of the changes.
+        #       If activated, you will first run experiments until you reach `N_initial_plateaus` initial plateaus.
+        #       And then for each of those you would continue them `N_reps_each_init_plateau` times, adding the
+        #       specified changes and not adding the changes (controls), for then comparing the effects of the changes.
         #       Each individual experiment lasting the specified number of epochs and iterations in CFG.
         #
         #   - run_multiple_experiments: Whether to run multiple experiments.
         #
-        #   - common_initial_experiment: Whether to start from common initial exp. + change, or all from scratch.
+        #   - common_initial_plateaus: Whether to start from common initial plateaus + change, or all from scratch.
         #
         #     If True:
-        #       + N_initial_exp: Number of initial experiments to run, without change (default: 5).
-        #       + N_reps_each_init_exp: Num of reps for each initial experiment afterwards, with changes (default: 20).
+        #       + N_initial_plateaus: Number of initial plateaus to find, with default CFG (default: 5).
+        #       + N_reps_each_init_plateau: Num of reps for each initial experiment afterwards, with changes (default: 20).
         #
         #     If False:
-        #       + N_reps_no_common_initial_exp: Number of repetitions for each new configuration (default: 100).
+        #       + N_reps_if_from_scratch: Number of repetitions for each new configuration (default: 100).
         #
-        #   - reps_new_config: The configuration changes to run. If starting from common initial experiments,
-        #         then this represent the changes after the initial experiments (+ control with no changes).
-        #         If not starting from common initial experiments, then this represents the full set of experiments.
+        #   - reps_new_config: The configuration changes to run. If starting from common initial plateaus,
+        #         then this represent the changes after the initial plateaus (+ control with no changes).
+        #         If not starting from common initial plateaus, then this represents the full set of experiments.
         #
         #############################################################################################
         self.run_multiple_experiments: bool = True
-        self.common_initial_experiment: bool = True
-        # If common_initial_experiment == true:
-        self.N_initial_exp: int = 10
-        self.N_reps_each_init_exp: int = 20
-        # If common_initial_experiment == false:
-        self.N_reps_no_common_initial_exp: int = 100
+        self.common_initial_plateaus: bool = True
+        # If common_initial_plateaus == true:
+        self.N_initial_plateaus: int = 10
+        self.N_reps_each_init_plateau: int = 20
+        # If common_initial_plateaus == false:
+        self.N_reps_if_from_scratch: int = 100
 
         self.reps_new_config: list[dict[str, Any]] = [
             {
@@ -95,7 +95,7 @@ class Config:
         #   - warm_start_strength: Strength of warm start for generator (only if loading).
         #
         #############################################################################################
-        self.load_timestamp: Optional[str] = None  # "2025-06-26__17-26-03"  # None
+        self.load_timestamp: Optional[str] = None  # "2025-07-10__18-57-21"
         self.type_of_warm_start: Literal["none", "all", "some"] = "none"
         self.warm_start_strength: Optional[float] = 0.1
 
@@ -187,7 +187,7 @@ class Config:
         #       + "ZZ_X_Z": 2 body Z, 1 body X and 1 body Z terms.
         #
         #############################################################################################
-        self.gen_layers: int = 4  # 2, 3, 5, 10, 20 ...
+        self.gen_layers: int = 3  # 2, 3, 5, 10, 20 ...
         self.gen_ansatz: Literal["XX_YY_ZZ_Z", "ZZ_X_Z"] = "ZZ_X_Z"
 
         #############################################################################################
@@ -274,6 +274,7 @@ class Config:
             f"ancilla_mode: {self.ancilla_mode},\n"
             f"ancilla_project_norm: {self.ancilla_project_norm},\n"
             f"ancilla_topology: {self.ancilla_topology},\n"
+            f"do_ancilla_1q_gates: {self.do_ancilla_1q_gates},\n"
             f"ancilla_connect_to: {self.ancilla_connect_to},\n"
             "----------------------------------------------\n"
             f"gen_layers: {self.gen_layers},\n"

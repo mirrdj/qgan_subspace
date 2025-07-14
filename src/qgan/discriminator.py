@@ -15,6 +15,7 @@
 
 import os
 import pickle
+from copy import deepcopy
 
 import numpy as np
 from scipy.linalg import expm
@@ -345,12 +346,12 @@ class Discriminator:
         # Check for exact match (same size)
         ########################################################################
         if saved_dis.size == self.size:  # This size check, already takes care into ancilla match!
-            self.alpha = saved_dis.alpha.copy()
-            self.beta = saved_dis.beta.copy()
+            self.alpha = deepcopy(saved_dis.alpha)
+            self.beta = deepcopy(saved_dis.beta)
 
             # Load the optimizer parameters if they exist in the saved generator
-            self.optimizer_phi.v = saved_dis.optimizer_phi.v
-            self.optimizer_psi.v = saved_dis.optimizer_psi.v
+            self.optimizer_phi = deepcopy(saved_dis.optimizer_phi)
+            self.optimizer_psi = deepcopy(saved_dis.optimizer_psi)
 
             print_and_log("Discriminator parameters loaded\n", CFG.log_path)
             return True

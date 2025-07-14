@@ -46,11 +46,13 @@ def get_target_unitary(target_type: str, size: int) -> np.ndarray:
     raise ValueError(f"Unknown target type: {target_type}. Expected 'cluster_h', 'rotated_surface_h', or 'custom_h'.")
 
 
-def get_total_target_state(total_input_state: np.ndarray) -> np.ndarray:
+def get_final_target_state(final_input_state: np.ndarray) -> np.ndarray:
     """Initialize the target state. Applying the target unitary to the maximally entangled state.
 
+    And returns it ready to be used in the discriminator.
+
     Args:
-        total_input_state (np.ndarray): the input state, which is the maximally entangled state.
+        final_input_state (np.ndarray): the input state, which is the maximally entangled state.
 
     Returns:
         np.ndarray: the target state after applying the target unitary.
@@ -58,9 +60,9 @@ def get_total_target_state(total_input_state: np.ndarray) -> np.ndarray:
     target_unitary = get_target_unitary(CFG.target_hamiltonian, CFG.system_size)
 
     target_op = np.kron(Identity(CFG.system_size), target_unitary)
-    if CFG.extra_ancilla:
+    if CFG.extra_ancilla and CFG.ancilla_mode == "pass":
         target_op = np.kron(target_op, Identity(1))
-    return np.matmul(target_op, total_input_state)
+    return np.matmul(target_op, final_input_state)
 
 
 ##################################################################
