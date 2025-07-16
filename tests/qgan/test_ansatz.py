@@ -1,15 +1,19 @@
 import sys
 import os
+import pytest
 
 import numpy as np
+import pennylane as qml
 
 # This needs to be before any imports from src to ensure the correct path is set
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 
+from tools.qobjects.qcircuit import QuantumCircuit
 
 from tools.data.data_managers import save_model
 from qgan.generator import Generator, Ansatz
+from qgan.ansatz import get_ansatz_type_circuit, count_gates_ZZ_X_Z, count_gates_XX_YY_ZZ_Z
 from config import CFG
 
 # Set up the same configuration than inside the tests.
@@ -189,4 +193,33 @@ class TestGeneratorAnsatzAncillaModes():
         # Assert that tracing out the last qubit gives the same matrix as before
         # Keep every other row and column (i.e., trace out the last qubit)
         assert np.allclose(old_matrix, new_matrix[::2, ::2]), f"Matrix should be the same when tracing out last qubit in {topo} topology"
-            
+
+    @pytest.mark.parametrize("size, layers, type_of_ansatz", [
+        (2, 5, "ZZ_X_Z"),
+        (2, 10, "ZZ_X_Z"),
+        (3, 4, "XX_YY_ZZ_Z"),
+        (2, 10, "XX_YY_ZZ_Z"),
+        (5, 10, "XX_YY_ZZ_Z"),
+    ])
+    def test_construct_qcircuit_pennylane(self, size, layers, type_of_ansatz):
+
+        # Make uniform random angles for the gates (0 to 2*pi)
+        if type_of_ansatz == "ZZ_X_Z":
+            gate_count = count_gates_ZZ_X_Z(size, layers)
+        else:
+            gate_count = count_gates_XX_YY_ZZ_Z(size, layers)
+        theta = np.random.uniform(0, 2 * np.pi, gate_count)
+
+        circuit_fn = get_ansatz_type_circuit(type_of_ansatz)(size, layers, theta)
+        matrix_actual = qml.matrix(circuit_fn, wire_order=range(size))()
+
+        qc = QuantumCircuit(size, "name")
+        qc = Ansatz.get_ansatz_type_circuit(type_of_ansatz)(qc, size, layers, theta)
+        matrix_expected = qc.get_mat_rep()
+
+        assert np.allclose(matrix_actual.shape, matrix_expected.shape)
+        assert np.allclose(matrix_actual, matrix_expected)
+
+
+
+

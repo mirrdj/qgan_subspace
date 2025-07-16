@@ -319,7 +319,7 @@ class Ansatz:
         raise ValueError("Invalid type of ansatz specified.")
 
     @staticmethod
-    def construct_qcircuit_XX_YY_ZZ_Z(qc: QuantumCircuit, size: int, layer: int) -> QuantumCircuit:
+    def construct_qcircuit_XX_YY_ZZ_Z(qc: QuantumCircuit, size: int, layer: int, theta) -> QuantumCircuit:
         """Construct a quantum circuit with the ansatz of XX YY ZZ and FieldZ
 
         Args:
@@ -360,15 +360,13 @@ class Ansatz:
                     for gate in entg_list:
                         qc.add_gate(QuantumGate(gate, qubit_to_connect_to, size, angle=0))
 
-        # Make uniform random angles for the gates (0 to 2*pi)
-        theta = np.random.uniform(0, 2 * np.pi, len(qc.gates))
         for i, gate_i in enumerate(qc.gates):
             gate_i.angle = theta[i]
 
         return qc
 
     @staticmethod
-    def construct_qcircuit_ZZ_X_Z(qc: QuantumCircuit, size: int, layer: int) -> QuantumCircuit:
+    def construct_qcircuit_ZZ_X_Z(qc: QuantumCircuit, size: int, layer: int, theta) -> QuantumCircuit:
         """Construct a quantum circuit with the ansatz of ZZ and XZ
 
         Args:
@@ -389,6 +387,7 @@ class Ansatz:
             for i in range(size):
                 qc.add_gate(QuantumGate("X", i, angle=0))
                 qc.add_gate(QuantumGate("Z", i, angle=0))
+
             # Ancilla 1q gates for: total, bridge and disconnected:
             if CFG.extra_ancilla and CFG.do_ancilla_1q_gates:
                 qc.add_gate(QuantumGate("X", size, angle=0))
@@ -408,7 +407,7 @@ class Ansatz:
                     qc.add_gate(QuantumGate("ZZ", qubit_to_connect_to, size, angle=0))
 
         # Make uniform random angles for the gates (0 to 2*pi)
-        theta = np.random.uniform(0, 2 * np.pi, len(qc.gates))
+        # theta = np.random.uniform(0, 2 * np.pi, len(qc.gates))
         for i, gate_i in enumerate(qc.gates):
             gate_i.angle = theta[i]
 
