@@ -14,6 +14,8 @@
 """Optimizer file"""
 
 import numpy as np
+import torch
+from torch.optim.optimizer import Optimizer
 
 from config import CFG
 from tools.data.data_reshapers import _flatten, _unflatten
@@ -59,3 +61,51 @@ class MomentumOptimizer:
         new_theta = _unflatten(new_theta, theta)
 
         return new_theta
+
+
+class MomentumOptimizerTorch(Optimizer):
+    def __init__(self, params, eta: float = CFG.l_rate, miu: float = CFG.momentum_coeff, min_or_max: str = "min"):
+        if min_or_max == "min":
+            self.sign = -1.0
+        elif min_or_max == "max":
+            self.sign = 1.0
+        else:
+            raise ValueError("min_or_max must be either 'min' or 'max'")
+
+
+        defaults = dict(lr=eta, momentum=miu)
+        super(MomentumOptimizerTorch, self).__init__(params, defaults)
+
+    def step(self, closure=None):
+        """Performs a single optimization step."""
+
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            mu = group['momentum']
+            eta = group['lr']
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+
+                grad = p.grad.data
+
+                param_state = self.state[p]
+
+                # Initialize velocity buffer if not present
+                if 'velocity' not in param_state:
+                    # Start velocity at zero (same shape as param)
+                    param_state['velocity'] = torch.zeros_like(p.data)
+
+                v = param_state['velocity']
+
+                # Update velocity: v_{t+1} = mu * v_t - eta * grad
+                v.mul_(mu).add_(grad, alpha=-eta)
+
+                # Update parameter: theta_{t+1} = theta_t + v_{t+1}
+                p.data.add_(v)
+
+        return loss
