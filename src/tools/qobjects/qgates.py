@@ -25,6 +25,7 @@ Y = np.matrix([[0, -1j], [1j, 0]])  #: Pauli-Y matrix
 Z = np.matrix([[1, 0], [0, -1]])  #: Pauli-Z matrix
 Hadamard = np.matrix([[1, 1], [1, -1]] / np.sqrt(2))  #: Hadamard gate
 
+# Kets
 zero = np.matrix([[1, 0], [0, 0]])
 one = np.matrix([[0, 0], [0, 1]])
 
@@ -113,6 +114,7 @@ def expan_2qubit_gate(gate, size, control, target):
             Identity(control), np.kron(one, np.kron(Identity(b - a - 1), np.kron(gate, Identity(size - target - 1))))
         )
     else:
+        # TODO: Does this not lead to an error?
         U_two = np.kron(
             Identity(target), np.kron(gate, np.kron(Identity(a - b - 1), np.kron(one, Identity(size - control - 1))))
         )
