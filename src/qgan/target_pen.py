@@ -96,7 +96,7 @@ def to_pauli(let: str) -> qml.operation.Operator:
     elif let == "I":
         return qml.I
     else:
-        print(f"No gate for {let}")
+        raise ValueError(f"No gate for {let}")
 
 
 def construct_clusterH(num_qubits: int) -> pnp.ndarray:
