@@ -92,7 +92,7 @@ def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_in
                 bin_centers - width / 2,
                 control_hist,
                 width=width,
-                label="Control (no change)",
+                label=f"Control (no change) ({len(control_fids)} tries)",
                 alpha=0.7,
                 color=run_colors[0],
             )
@@ -100,12 +100,15 @@ def plot_recurrence_vs_fid(base_path, log_path, run_idx, max_fidelity, common_in
     if np.any(changed_hist):
         # Use the second color from the palette for the first run, or cycle if run_idx is given
         run_color = run_colors[run_idx % len(run_colors)] if run_idx else run_colors[1]
+        run_label = (
+            f"Run {run_idx} ({len(changed_fids)} tries)" if run_idx else f"Experiment Runs ({len(changed_fids)} tries)"
+        )
         bars.append(
             plt.bar(
                 bin_centers + width / 2,
                 changed_hist,
                 width=width,
-                label=f"Run {run_idx}" if run_idx else "Experiment Runs",
+                label=run_label,
                 alpha=0.7,
                 color=run_color,
             )
@@ -151,7 +154,7 @@ def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_i
         control_hist, _ = np.histogram(control_fids, bins=bins)
         control_hist = control_hist / control_hist.sum() if control_hist.sum() > 0 else control_hist
         all_hists.append(control_hist)
-        all_labels.append("Control (no change)")
+        all_labels.append(f"Control (no change) ({len(control_fids)} tries)")
         all_colors.append(run_colors[0])
     # Collect all runs
     for run_idx in range(1, n_runs + 1):
@@ -162,7 +165,7 @@ def plot_comparison_all_runs(base_path, log_path, n_runs, max_fidelity, common_i
         changed_hist, _ = np.histogram(changed_fids, bins=bins)
         changed_hist = changed_hist / changed_hist.sum() if changed_hist.sum() > 0 else changed_hist
         all_hists.append(changed_hist)
-        all_labels.append(f"Run {run_idx}")
+        all_labels.append(f"Run {run_idx} ({len(changed_fids)} tries)")
         all_colors.append(run_colors[run_idx % len(run_colors)])
     # Plot as grouped bars: each group is a run (control is group 0 if present)
     n_groups = len(all_hists)
@@ -199,6 +202,7 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
     import matplotlib.ticker as mticker
 
     avgs = []
+    n_tries_per_run = []
     for run_idx in range(1, n_runs + 1):
         if common_initial_plateaus:
             changed_fids = collect_latest_changed_fidelities_nested_run(base_path, run_idx)
@@ -206,8 +210,10 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
             changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
         if changed_fids:
             avgs.append(np.nanmean(changed_fids))
+            n_tries_per_run.append(len(changed_fids))
         else:
             avgs.append(0)
+            n_tries_per_run.append(0)
     plt.figure(figsize=(8, 5))
     x = np.arange(1, n_runs + 1)
     plt.plot(x, avgs, "o", color="green", label="Runs Avg", markersize=6)
@@ -220,9 +226,16 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
         if control_fids:
             control_avg = np.nanmean(control_fids)
             plt.plot([0], [control_avg], "s", color="blue", label="Control Avg", markersize=8)
-            plt.text(0, control_avg + 0.01, f"{control_avg:.3f}", ha="center", va="bottom", fontsize=9)
+            plt.text(
+                0,
+                control_avg + 0.01,
+                f"{control_avg:.3f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
     plt.axhline(max_fidelity, color="C0", linestyle="--", label=f"max_fidelity={max_fidelity}")
-    plt.xlabel("Run index")
+    plt.xlabel("Run index (N tries per run)")
     plt.ylabel("Average of Best Fidelity Achieved")
     plt.title("Average Best Fidelity per Run")
     plt.ylim(0, 1.05)
@@ -236,20 +249,19 @@ def plot_avg_best_fid_per_run(base_path, log_path, n_runs, max_fidelity, common_
     plt.close()
 
 
-##########################################################################
-# PLOT SUCCESS PERCENTAGE PER RUN (> threshold fidelity)
-##########################################################################
 def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, common_initial_plateaus):
     import matplotlib.ticker as mticker
 
     percents = []
+    n_tries_per_run = []
     for run_idx in range(1, n_runs + 1):
         changed_fids = collect_latest_changed_fidelities_nested(base_path, common_initial_plateaus, run_idx)
         perc = 100 * np.sum(np.array(changed_fids) >= max_fidelity) / len(changed_fids) if changed_fids else 0
         percents.append(perc)
+        n_tries_per_run.append(len(changed_fids) if changed_fids else 0)
     plt.figure(figsize=(8, 5))
     x = np.arange(1, n_runs + 1)
-    points = plt.plot(x, percents, "o", color="red", label="Runs Success", markersize=6)
+    plt.plot(x, percents, "o", color="red", label="Runs Success", markersize=6)
     # Add value labels above each point
     for xi, yi in zip(x, percents):
         plt.text(xi, yi + 1, f"{yi:.1f}%", ha="center", va="bottom", fontsize=9)
@@ -259,8 +271,15 @@ def plot_success_percent_per_run(base_path, log_path, n_runs, max_fidelity, comm
         if control_fids:
             control_success = 100 * np.sum(np.array(control_fids) >= max_fidelity) / len(control_fids)
             plt.plot([0], [control_success], "s", color="blue", label="Control Success", markersize=8)
-            plt.text(0, control_success + 1, f"{control_success:.1f}%", ha="center", va="bottom", fontsize=9)
-    plt.xlabel("Run index")
+            plt.text(
+                0,
+                control_success + 1,
+                f"{control_success:.1f}%",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+    plt.xlabel("Run index (N tries per run)")
     plt.ylabel(f"% of Runs with Fidelity ≥ {max_fidelity}")
     plt.title("Success Rate per Run")
     plt.ylim(0, 105)
