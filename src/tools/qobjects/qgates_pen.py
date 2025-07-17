@@ -27,14 +27,13 @@ def quantum_gate(name):
     """
     Retrieve the desired gate.
     """
-
-    if name in ["XX", "YY", "ZZ"]: # TODO: FIX
+    if name in ["XX", "YY", "ZZ"]:
         return qml.PauliRot
     elif name in ["X", "Y", "Z"]:
         return qml.PauliRot
     elif name == "G":  # TODO: FIX
         return qml.GlobalPhase
-    elif name == "CNOT":  # TODO: FIX
+    elif name == "CNOT":
         return qml.CNOT
     else:
         raise ValueError("Gate is not defined")

@@ -24,16 +24,7 @@ class TestQGates():
         gate = quantum_gate(name)
         matrix_actual = gate(angle, name, [qubit1, qubit2]).matrix()
 
-        print(matrix_expected)
-        print("\n")
-        print(matrix_actual)
-        print("----------")
-        print("\n\n")
-
-        phase = np.vdot(matrix_expected.flatten(), matrix_actual.flatten()) / np.linalg.norm(matrix_expected) ** 2
-
-        assert np.allclose(matrix_expected, phase * matrix_actual)
-
+        assert np.allclose(matrix_expected, matrix_actual)
 
     @pytest.mark.parametrize("angle,qubit1,qubit2,name", [
         (np.pi / 3, 0, 1, "Z"),
@@ -70,7 +61,7 @@ class TestQGates():
         qg = QuantumGate(name, qubit1, qubit2, angle=angle)
         matrix_expected = qg.matrix_representation(2, False)
         gate = quantum_gate(name)
-        matrix_actual = gate(angle).matrix()
+        matrix_actual = gate([qubit1, qubit2]).matrix()
 
         assert np.allclose(matrix_expected, matrix_actual)
 

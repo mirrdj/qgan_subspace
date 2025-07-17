@@ -132,7 +132,7 @@ def XX_Rotation(size, qubit1, qubit2, param, is_grad):
     try:  # return matrix
         if is_grad:
             return -1j * np.matmul(matrix, linalg.expm(-1j * param * matrix))
-        return linalg.expm(-1j * param * matrix)
+        return linalg.expm(-1j / 2 * param * matrix)
 
     except Exception:
         print("param:\n:", param)
@@ -149,7 +149,7 @@ def YY_Rotation(size, qubit1, qubit2, param, is_grad):
     try:  # return matrix
         if is_grad:
             return -1j * np.matmul(matrix, linalg.expm(-1j * param * matrix))
-        return linalg.expm(-1j * param * matrix)
+        return linalg.expm(-1j / 2 * param * matrix)
 
     except Exception:
         print("param:\n:", param)
@@ -166,7 +166,7 @@ def ZZ_Rotation(size, qubit1, qubit2, param, is_grad):
     try:  # return matrix
         if is_grad:
             return 1j / 2 * np.matmul(matrix, linalg.expm(1j / 2 * param * matrix))
-        return linalg.expm(1j / 2 * param * matrix)
+        return linalg.expm(-1j / 2 * param * matrix)
 
     except Exception:
         print("param:\n:", param)
