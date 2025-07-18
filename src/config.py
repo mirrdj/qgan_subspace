@@ -54,8 +54,8 @@ class Config:
         self.run_multiple_experiments: bool = True
         self.common_initial_plateaus: bool = True
         # If common_initial_plateaus == true:
-        self.N_initial_plateaus: int = 10
-        self.N_reps_each_init_plateau: int = 20
+        self.N_initial_plateaus: int = 20
+        self.N_reps_each_init_plateau: int = 5
         # If common_initial_plateaus == false:
         self.N_reps_if_from_scratch: int = 100
 
@@ -175,8 +175,8 @@ class Config:
         self.ancilla_project_norm: Optional[Literal["re-norm", "pass"]] = "re-norm"
         self.ancilla_topology: Optional[Literal["disconnected", "ansatz", "bridge", "total"]] = "bridge"
         self.ancilla_connect_to: Optional[int] = None  # None means connected to last one, otherwise to the specified.
-        self.do_ancilla_1q_gates: bool = False  # Whether to include 1-qubit gates for ancilla qubit.
-        self.start_ancilla_gates_randomly: bool = False  # Whether to start ancilla gates with random angles.
+        self.do_ancilla_1q_gates: bool = True  # Whether to include 1-qubit gates for ancilla qubit.
+        self.start_ancilla_gates_randomly: bool = True  # Whether to start ancilla gates with random angles.
 
         #############################################################################################
         # -----------------------
@@ -207,8 +207,8 @@ class Config:
         #
         #############################################################################################
         self.target_hamiltonian: Literal["cluster_h", "rotated_surface_h", "ising_h", "custom_h"] = "custom_h"
-        self.custom_hamiltonian_terms: Optional[list[str]] = ["XZ", "X"]  # "I", "X", "Y", "Z", "XX", "XZ", "ZZZ", ...
-        self.custom_hamiltonian_strengths: Optional[list[float]] = [1.0, 0.1]  # Strengths for the above terms.
+        self.custom_hamiltonian_terms: Optional[list[str]] = ["ZZZ"]  # "I", "X", "Y", "Z", "XX", "XZ", "ZZZ", ...
+        self.custom_hamiltonian_strengths: Optional[list[float]] = [1.0]  # Strengths for the above terms.
 
         #############################################################################################
         # -----------------------------------
