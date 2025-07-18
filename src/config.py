@@ -159,8 +159,8 @@ class Config:
         #     |  P  |                 |     A────────     |      A────────      |      A────────       |
         #     |-----|-----------------|-------------------|---------------------|----------------------|
         #
-        #   - ancilla_connect_to: If ancilla_topology is "ansatz" or "bridge" connect to this qubit index.
-        #       If None, then the ancilla is connected to the last qubit.
+        #   - ancilla_connect_to: If ancilla_topology is "ansatz" or "bridge" connect to this qubit index
+        #       (starting at 0). If None, then the ancilla is connected to the last qubit.
         #       (In the diagrams above, you would basically choose where that "x" connection goes in those)
         #
         #   - do_ancilla_1q_gates: Whether to include 1-qubit gates for the ancilla qubit.
