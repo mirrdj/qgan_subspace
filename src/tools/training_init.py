@@ -196,7 +196,7 @@ def execute_from_common_initial_plateaus(base_path):
     Loops twice, first for `CFG.N_initial_plateaus`, then for `CFG.N_reps_each_init_plateau`,
     starting from each of the last runs, changing what is specified in `CFG.reps_new_config`.
 
-    Results are saved in initial_plateau_X/repeated_controls/ and initial_plateau_X/repeated_changed_runX/ subfolders.
+    Results are saved in initial_plateau_X/repeated_control and initial_plateau_X/repeated_changed_runX/ subfolders.
 
     If loading a previous MULTIPLE_RUNS, appends new runs after the last existing index.
     """
@@ -293,10 +293,14 @@ def _run_repeated_experiments(
     run_idx = None
     if is_changed:
         run_idx = int(changed_or_control.replace("changed_run", ""))
+
+    # Only 1 control run per initial plateau:
+    if changed_or_control == "control":
+        N_reps_each_init_plateau = 1
+
     for i, rep in itertools.product(range(N_initial_plateaus), range(N_reps_each_init_plateau)):
-        # TODO: Change this to only do 1 control, since they are all the same.
         if changed_or_control == "control":
-            out_dir = f"{base_path}/initial_plateau_{i+1}/repeated_controls/{rep+1}"
+            out_dir = f"{base_path}/initial_plateau_{i+1}/repeated_control"
         elif is_changed:
             out_dir = f"{base_path}/initial_plateau_{i+1}/repeated_changed_run{run_idx}/{rep+1}"
         else:

@@ -360,12 +360,7 @@ class Ansatz:
                     for gate in entg_list:
                         qc.add_gate(QuantumGate(gate, qubit_to_connect_to, size, angle=0))
 
-        # Make uniform random angles for the gates (0 to 2*pi)
-        theta = np.random.uniform(0, 2 * np.pi, len(qc.gates))
-        for i, gate_i in enumerate(qc.gates):
-            gate_i.angle = theta[i]
-
-        return qc
+        return Ansatz.randomize_gates_in_qc(qc, size)
 
     @staticmethod
     def construct_qcircuit_ZZ_X_Z(qc: QuantumCircuit, size: int, layer: int) -> QuantumCircuit:
@@ -407,9 +402,15 @@ class Ansatz:
                     qubit_to_connect_to = CFG.ancilla_connect_to if CFG.ancilla_connect_to is not None else size - 1
                     qc.add_gate(QuantumGate("ZZ", qubit_to_connect_to, size, angle=0))
 
+        return Ansatz.randomize_gates_in_qc(qc, size)
+
+    @staticmethod
+    def randomize_gates_in_qc(qc: QuantumCircuit, size: int) -> QuantumCircuit:
         # Make uniform random angles for the gates (0 to 2*pi)
         theta = np.random.uniform(0, 2 * np.pi, len(qc.gates))
         for i, gate_i in enumerate(qc.gates):
-            gate_i.angle = theta[i]
+            # Depending on the config, randomize the ancilla gates or not:
+            if CFG.start_ancilla_gates_randomly or size not in [gate_i.qubit1, gate_i.qubit2]:
+                gate_i.angle = theta[i]
 
         return qc
